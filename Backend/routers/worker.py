@@ -95,3 +95,21 @@ def get_worker_history(db: Session = Depends(database.get_db), current_user: mod
         models.Booking.status == models.BookingStatusEnum.DONE
     ).all()
     return bookings
+
+@router.get("/jobs/my", response_model=List[schemas.BookingResponse])
+def get_my_jobs(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_worker)):
+    bookings = db.query(models.Booking).filter(
+        models.Booking.worker_id == current_user.id,
+        models.Booking.status.in_([models.BookingStatusEnum.ACCEPTED, models.BookingStatusEnum.IN_PROGRESS])
+    ).all()
+    return bookings
+
+@router.get("/reviews", response_model=List[schemas.ReviewResponse])
+def get_worker_reviews(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_worker)):
+    worker_bookings = db.query(models.Booking).filter(
+        models.Booking.worker_id == current_user.id,
+        models.Booking.status == models.BookingStatusEnum.DONE
+    ).all()
+    booking_ids = [b.id for b in worker_bookings]
+    reviews = db.query(models.Review).filter(models.Review.booking_id.in_(booking_ids)).all()
+    return reviews

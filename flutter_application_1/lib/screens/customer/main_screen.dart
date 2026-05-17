@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import 'bookings_screen.dart';
+import 'profile_screen.dart';
 
 class CustomerMainScreen extends StatefulWidget {
   const CustomerMainScreen({super.key});
@@ -12,8 +14,8 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
   int _currentIndex = 0;
   final List<Widget> _screens = [
     const CustomerHomeScreen(),
-    const Center(child: Text('Bookings')), // BookingsScreen Placeholder
-    const Center(child: Text('Profile')), // ProfileScreen Placeholder
+    const BookingsScreen(),
+    const ProfileScreen(),
   ];
 
   @override
@@ -29,9 +31,9 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
         elevation: 10,
         showUnselectedLabels: true,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: 'Bookings'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Trang chủ'),
+          BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: 'Lịch hẹn'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Hồ sơ'),
         ],
       ),
     );

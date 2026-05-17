@@ -4,6 +4,8 @@ import 'providers/auth_provider.dart';
 import 'theme/app_theme.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/customer/main_screen.dart';
+import 'screens/worker/main_screen.dart';
+import 'screens/admin/admin_main_screen.dart';
 
 void main() {
   runApp(
@@ -30,34 +32,12 @@ class SmartServiceApp extends StatelessWidget {
           if (auth.isAuthenticated) {
             // Routing based on role
             if (auth.role == 'customer') return const CustomerMainScreen();
-            if (auth.role == 'worker') return const WorkerHomePlaceholder();
-            if (auth.role == 'admin' || auth.role == 'support') return const AdminHomePlaceholder();
+            if (auth.role == 'worker') return const WorkerMainScreen();
+            if (auth.role == 'admin' || auth.role == 'support') return const AdminMainScreen();
           }
           return const LoginScreen();
         },
       ),
-    );
-  }
-}
-
-class WorkerHomePlaceholder extends StatelessWidget {
-  const WorkerHomePlaceholder({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Worker Home')),
-      body: const Center(child: Text('Worker Home')),
-    );
-  }
-}
-
-class AdminHomePlaceholder extends StatelessWidget {
-  const AdminHomePlaceholder({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Admin/Support Home')),
-      body: const Center(child: Text('Admin Home')),
     );
   }
 }

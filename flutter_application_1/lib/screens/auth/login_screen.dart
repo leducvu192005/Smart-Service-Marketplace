@@ -28,7 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (!success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid credentials. Please try again.')),
+        const SnackBar(content: Text('Tài khoản hoặc mật khẩu sai. Vui lòng thử lại.')),
       );
     }
   }
@@ -76,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 24),
                     const Text(
-                      'Welcome Back',
+                      'Chào mừng trở lại',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 28,
@@ -85,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Sign in to your account',
+                      'Đăng nhập vào tài khoản của bạn',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 16,
@@ -95,13 +95,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 48),
                     CustomTextField(
                       controller: _usernameController,
-                      hint: 'Username',
+                      hint: 'Tên đăng nhập',
                       icon: Icons.person_outline,
                     ),
                     const SizedBox(height: 16),
                     CustomTextField(
                       controller: _passwordController,
-                      hint: 'Password',
+                      hint: 'Mật khẩu',
                       icon: Icons.lock_outline,
                       isPassword: true,
                     ),
@@ -111,14 +111,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: TextButton(
                         onPressed: () {},
                         child: Text(
-                          'Forgot Password?',
+                          'Quên mật khẩu?',
                           style: TextStyle(color: Theme.of(context).primaryColor),
                         ),
                       ),
                     ),
                     const SizedBox(height: 24),
                     PrimaryButton(
-                      text: 'Login',
+                      text: 'Đăng nhập',
                       isLoading: _isLoading,
                       onPressed: _handleLogin,
                     ),
@@ -126,7 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Don\'t have an account?', style: TextStyle(color: Colors.grey.shade600)),
+                        Text('Chưa có tài khoản?', style: TextStyle(color: Colors.grey.shade600)),
                         TextButton(
                           onPressed: () {
                             Navigator.pushReplacement(
@@ -140,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             );
                           },
                           child: Text(
-                            'Sign Up',
+                            'Đăng ký',
                             style: TextStyle(
                               color: Theme.of(context).primaryColor,
                               fontWeight: FontWeight.bold,

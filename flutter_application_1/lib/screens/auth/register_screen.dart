@@ -36,7 +36,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registration successful. Please login.')),
+          const SnackBar(content: Text('Đăng ký thành công. Vui lòng đăng nhập.')),
         );
         Navigator.pushReplacement(
           context,
@@ -47,7 +47,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Registration failed: ${e.toString()}')),
+          SnackBar(content: Text('Đăng ký thất bại: ${e.toString()}')),
         );
       }
     }
@@ -78,7 +78,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text(
-                      'Create Account',
+                      'Tạo tài khoản',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 28,
@@ -87,7 +87,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Join Smart Service Marketplace',
+                      'Tham gia vào Hệ sinh thái',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 16,
@@ -97,7 +97,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 40),
                     CustomTextField(
                       controller: _usernameController,
-                      hint: 'Username',
+                      hint: 'Tên đăng nhập',
                       icon: Icons.person_outline,
                     ),
                     const SizedBox(height: 16),
@@ -109,13 +109,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 16),
                     CustomTextField(
                       controller: _fullNameController,
-                      hint: 'Full Name',
+                      hint: 'Họ và tên',
                       icon: Icons.badge_outlined,
                     ),
                     const SizedBox(height: 16),
                     CustomTextField(
                       controller: _passwordController,
-                      hint: 'Password',
+                      hint: 'Mật khẩu',
                       icon: Icons.lock_outline,
                       isPassword: true,
                     ),
@@ -140,8 +140,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           isExpanded: true,
                           icon: Icon(Icons.arrow_drop_down, color: Theme.of(context).primaryColor),
                           items: const [
-                            DropdownMenuItem(value: 'customer', child: Text('I am a Customer')),
-                            DropdownMenuItem(value: 'worker', child: Text('I am a Worker')),
+                            DropdownMenuItem(value: 'customer', child: Text('Tôi là Khách hàng')),
+                            DropdownMenuItem(value: 'worker', child: Text('Tôi là Thợ')),
                           ],
                           onChanged: (val) {
                             if (val != null) setState(() => _selectedRole = val);
@@ -151,7 +151,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     const SizedBox(height: 40),
                     PrimaryButton(
-                      text: 'Register',
+                      text: 'Đăng ký',
                       isLoading: _isLoading,
                       onPressed: _handleRegister,
                     ),
@@ -159,7 +159,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Already have an account?', style: TextStyle(color: Colors.grey.shade600)),
+                        Text('Đã có tài khoản?', style: TextStyle(color: Colors.grey.shade600)),
                         TextButton(
                           onPressed: () {
                             Navigator.pushReplacement(
@@ -173,7 +173,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             );
                           },
                           child: Text(
-                            'Sign In',
+                            'Đăng nhập',
                             style: TextStyle(
                               color: Theme.of(context).primaryColor,
                               fontWeight: FontWeight.bold,

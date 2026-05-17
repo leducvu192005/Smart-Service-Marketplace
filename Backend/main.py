@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
 from routers import auth, customer, worker, support, admin
@@ -10,6 +11,15 @@ app = FastAPI(
     title="Smart Service Marketplace API",
     description="API for the 4-role utility service app: Customer, Worker, Support, Admin.",
     version="1.0.0"
+)
+
+# Thêm cấu hình CORS để cho phép Flutter Edge/Chrome kết nối tới
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth.router)
