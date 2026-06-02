@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 
@@ -12,8 +13,25 @@ class WorkerProfileScreen extends StatefulWidget {
 
 class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
   final ApiService _apiService = ApiService();
-  bool _isAvailable = false;
+  final _formKey = GlobalKey<FormState>();
   
+  bool _isLoading = true;
+  bool _isSaving = false;
+  bool _isEditMode = false;
+  
+  // Worker profile fields
+  String _fullName = '';
+  String _phone = '';
+  String _avatarUrl = '';
+  String _address = '';
+  String _city = '';
+  String _district = '';
+  String _jobTitle = '';
+  int _experienceYears = 0;
+  String _skills = '';
+  String _description = '';
+  bool _isAvailable = false;
+
   @override
   void initState() {
     super.initState();
@@ -21,78 +39,417 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
   }
 
   Future<void> _fetchProfile() async {
+    if (mounted) setState(() => _isLoading = true);
     try {
-      final res = await _apiService.client.get('/worker/profile');
-      if (mounted) setState(() => _isAvailable = res.data['is_available']);
-    } catch(e) {}
+      final res = await _apiService.client.get('/workers/me');
+      final data = res.data;
+      if (mounted) {
+        setState(() {
+          _fullName = data['full_name'] ?? '';
+          _phone = data['phone'] ?? '';
+          _avatarUrl = data['avatar_url'] ?? '';
+          _address = data['address'] ?? '';
+          _city = data['city'] ?? '';
+          _district = data['district'] ?? '';
+          _jobTitle = data['job_title'] ?? '';
+          _experienceYears = (data['experience_years'] as num?)?.toInt() ?? 0;
+          _skills = data['skills'] ?? '';
+          _description = data['description'] ?? '';
+          _isAvailable = data['is_available'] ?? false;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lỗi khi tải thông tin hồ sơ thợ'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
-  Future<void> _toggleAvailability(bool val) async {
-    setState(() => _isAvailable = val);
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+    _formKey.currentState!.save();
+    
+    setState(() => _isSaving = true);
     try {
-      await _apiService.client.put('/worker/profile', data: {'is_available': val});
-    } catch(e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update status')));
-      setState(() => _isAvailable = !val);
+      final body = {
+        'full_name': _fullName,
+        'phone': _phone,
+        'avatar_url': _avatarUrl,
+        'address': _address,
+        'city': _city,
+        'district': _district,
+        'job_title': _jobTitle,
+        'experience_years': _experienceYears,
+        'skills': _skills,
+        'description': _description,
+        'is_available': _isAvailable,
+      };
+      
+      await _apiService.client.put('/workers/me', data: body);
+      
+      // Update global AuthProvider user cache if needed
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.checkAuthStatus();
+      
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _isEditMode = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cập nhật hồ sơ thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cập nhật thất bại. Vui lòng thử lại.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
-    final user = auth.user ?? {};
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Hồ sơ Thợ')),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-            child: Text(
-              user['full_name']?.toString().substring(0,1).toUpperCase() ?? 'W',
-              style: TextStyle(fontSize: 36, color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(user['full_name'] ?? 'Nhân viên Thợ', textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          Text('Vai trò: Thợ dịch vụ', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
-          const SizedBox(height: 32),
-          Container(
-             decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 20, offset: const Offset(0, 10),
-                  )
-                ]
-            ),
-            child: SwitchListTile(
-              title: const Text('Sẵn sàng nhận việc', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Bật để nhận yêu cầu công việc ở gần bạn'),
-              value: _isAvailable,
-              activeColor: Theme.of(context).primaryColor,
-              onChanged: _toggleAvailability,
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.history),
-            title: const Text('Thu nhập & Lịch sử làm việc'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {},
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Đăng xuất', style: TextStyle(color: Colors.red)),
-            onTap: () => auth.logout(),
-          ),
+      backgroundColor: const Color(0xFFF8F9FC),
+      appBar: AppBar(
+        title: Text(
+          'Hồ sơ Thợ',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1E293B),
+        elevation: 0,
+        shape: Border(bottom: BorderSide(color: Colors.grey.shade100, width: 1)),
+        actions: [
+          if (!_isLoading)
+            IconButton(
+              icon: Icon(_isEditMode ? Icons.close : Icons.edit_note, color: theme.primaryColor),
+              onPressed: () {
+                setState(() {
+                  if (_isEditMode) {
+                    _fetchProfile(); // Revert changes
+                  }
+                  _isEditMode = !_isEditMode;
+                });
+              },
+            )
         ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(24),
+                children: [
+                  // Avatar Section
+                  _buildAvatarSection(theme),
+                  const SizedBox(height: 32),
+                  
+                  // Profile Fields
+                  _isEditMode ? _buildEditForm(theme) : _buildViewProfile(theme),
+                  
+                  const SizedBox(height: 32),
+                  
+                  // Save / Cancel / Logout buttons
+                  if (_isEditMode) ...[
+                    SizedBox(
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: _isSaving ? null : _saveProfile,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.primaryColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: _isSaving
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : Text('Lưu thay đổi', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  
+                  SizedBox(
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: () => auth.logout(),
+                      icon: const Icon(Icons.logout, color: Colors.redAccent, size: 18),
+                      label: Text(
+                        'Đăng xuất tài khoản',
+                        style: GoogleFonts.outfit(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.redAccent),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildAvatarSection(ThemeData theme) {
+    return Column(
+      children: [
+        CircleAvatar(
+          radius: 46,
+          backgroundColor: theme.primaryColor.withOpacity(0.1),
+          child: CircleAvatar(
+            radius: 42,
+            backgroundColor: Colors.white,
+            backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
+            child: _avatarUrl.isEmpty
+                ? Text(
+                    _fullName.isNotEmpty ? _fullName.substring(0, 1).toUpperCase() : 'W',
+                    style: GoogleFonts.outfit(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: theme.primaryColor,
+                    ),
+                  )
+                : null,
+          ),
+        ),
+        if (_isEditMode) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Mẹo: Dán URL hình ảnh ở bên dưới để đổi avatar',
+            style: GoogleFonts.outfit(fontSize: 11, color: Colors.grey.shade400),
+          )
+        ]
+      ],
+    );
+  }
+
+  Widget _buildViewProfile(ThemeData theme) {
+    return Column(
+      children: [
+        _buildInfoCard(
+          title: 'Thông tin cá nhân',
+          children: [
+            _buildDetailRow(label: 'Họ và tên', value: _fullName, icon: Icons.person_outline),
+            _buildDetailRow(label: 'Số điện thoại', value: _phone, icon: Icons.phone_android),
+            _buildDetailRow(label: 'Địa chỉ email', value: _fullName.isNotEmpty ? '${_fullName.toLowerCase().replaceAll(' ', '')}@gmail.com' : '', icon: Icons.email_outlined),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _buildInfoCard(
+          title: 'Hồ sơ nghề nghiệp',
+          children: [
+            _buildDetailRow(label: 'Công việc chuyên môn', value: _jobTitle, icon: Icons.construction_outlined),
+            _buildDetailRow(label: 'Kinh nghiệm làm việc', value: '$_experienceYears năm', icon: Icons.history_edu_outlined),
+            _buildDetailRow(label: 'Kỹ năng chuyên sâu', value: _skills, icon: Icons.bolt_outlined),
+            _buildDetailRow(label: 'Mô tả thêm', value: _description, icon: Icons.description_outlined),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _buildInfoCard(
+          title: 'Địa chỉ hoạt động',
+          children: [
+            _buildDetailRow(label: 'Khu vực cụ thể', value: _address, icon: Icons.home_outlined),
+            _buildDetailRow(label: 'Quận / Huyện', value: _district, icon: Icons.location_city_outlined),
+            _buildDetailRow(label: 'Tỉnh / Thành phố', value: _city, icon: Icons.map_outlined),
+          ],
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildInfoCard({required String title, required List<Widget> children}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.01),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.outfit(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow({required String label, required String value, required IconData icon}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: Colors.grey.shade400),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: GoogleFonts.outfit(fontSize: 11, color: Colors.grey.shade400)),
+                const SizedBox(height: 2),
+                Text(
+                  value.isNotEmpty ? value : 'Chưa cập nhật',
+                  style: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF1E293B), fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditForm(ThemeData theme) {
+    return Column(
+      children: [
+        _buildTextField(
+          label: 'Họ và tên',
+          initialValue: _fullName,
+          icon: Icons.person_outline,
+          onSaved: (val) => _fullName = val ?? '',
+          validator: (val) => val == null || val.isEmpty ? 'Vui lòng điền họ tên' : null,
+        ),
+        _buildTextField(
+          label: 'Số điện thoại',
+          initialValue: _phone,
+          icon: Icons.phone_android,
+          keyboardType: TextInputType.phone,
+          onSaved: (val) => _phone = val ?? '',
+        ),
+        _buildTextField(
+          label: 'Đường dẫn ảnh đại diện (URL)',
+          initialValue: _avatarUrl,
+          icon: Icons.link,
+          onSaved: (val) => _avatarUrl = val ?? '',
+        ),
+        _buildTextField(
+          label: 'Tỉnh / Thành phố',
+          initialValue: _city,
+          icon: Icons.map_outlined,
+          onSaved: (val) => _city = val ?? '',
+        ),
+        _buildTextField(
+          label: 'Quận / Huyện',
+          initialValue: _district,
+          icon: Icons.location_city_outlined,
+          onSaved: (val) => _district = val ?? '',
+        ),
+        _buildTextField(
+          label: 'Khu vực cụ thể (Địa chỉ nhà)',
+          initialValue: _address,
+          icon: Icons.home_outlined,
+          onSaved: (val) => _address = val ?? '',
+        ),
+        _buildTextField(
+          label: 'Công việc chuyên môn',
+          initialValue: _jobTitle,
+          icon: Icons.construction_outlined,
+          onSaved: (val) => _jobTitle = val ?? '',
+        ),
+        _buildTextField(
+          label: 'Kinh nghiệm làm việc (Số năm)',
+          initialValue: _experienceYears.toString(),
+          icon: Icons.history_edu_outlined,
+          keyboardType: TextInputType.number,
+          onSaved: (val) => _experienceYears = int.tryParse(val ?? '0') ?? 0,
+        ),
+        _buildTextField(
+          label: 'Kỹ năng chuyên sâu (Cách nhau bằng dấu phẩy)',
+          initialValue: _skills,
+          icon: Icons.bolt_outlined,
+          onSaved: (val) => _skills = val ?? '',
+        ),
+        _buildTextField(
+          label: 'Mô tả chi tiết năng lực bản thân',
+          initialValue: _description,
+          icon: Icons.description_outlined,
+          maxLines: 4,
+          onSaved: (val) => _description = val ?? '',
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  Widget _buildTextField({
+    required String label,
+    required String initialValue,
+    required IconData icon,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+    required FormFieldSetter<String> onSaved,
+    FormFieldValidator<String>? validator,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        initialValue: initialValue,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        onSaved: onSaved,
+        validator: validator,
+        style: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF1E293B)),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: GoogleFonts.outfit(color: Colors.grey.shade400, fontSize: 13),
+          prefixIcon: Icon(icon, size: 18, color: Colors.grey.shade400),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade100),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Theme.of(context).primaryColor),
+          ),
+        ),
       ),
     );
   }

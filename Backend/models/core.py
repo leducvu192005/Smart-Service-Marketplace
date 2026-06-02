@@ -29,6 +29,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     
     worker_profile = relationship("WorkerProfile", back_populates="user", uselist=False)
+    worker_info = relationship("Worker", back_populates="user", uselist=False)
     bookings_as_customer = relationship("Booking", foreign_keys="[Booking.customer_id]", back_populates="customer")
     bookings_as_worker = relationship("Booking", foreign_keys="[Booking.worker_id]", back_populates="worker")
 

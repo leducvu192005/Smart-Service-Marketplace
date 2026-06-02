@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
-from routers import auth, customer, worker, support, admin
+from routers import auth, customer, worker, support, admin, workers
 
 # Create all tables in the database
 models.Base.metadata.create_all(bind=engine)
@@ -25,8 +25,10 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(customer.router)
 app.include_router(worker.router)
+app.include_router(workers.router)
 app.include_router(support.router)
 app.include_router(admin.router)
+
 
 @app.get("/")
 def read_root():
