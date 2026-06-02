@@ -37,8 +37,8 @@ def reassign_worker(booking_id: int, new_worker_id: int, db: Session = Depends(d
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
         
-    worker_profile = db.query(models.WorkerProfile).filter(models.WorkerProfile.user_id == new_worker_id).first()
-    if not worker_profile:
+    worker_info = db.query(models.Worker).filter(models.Worker.id == new_worker_id).first()
+    if not worker_info:
         raise HTTPException(status_code=404, detail="New worker not found")
         
     booking.worker_id = new_worker_id

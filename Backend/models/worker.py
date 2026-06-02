@@ -55,3 +55,4 @@ class Worker(Base):
     
     # Relationship to user
     user = relationship("User", back_populates="worker_info")
+    bookings = relationship("Booking", back_populates="worker")

@@ -72,6 +72,7 @@ class BookingBase(BaseModel):
     service_id: int
     scheduled_time: datetime
     address: str
+    note: Optional[str] = None
 
 class BookingCreate(BookingBase):
     pass
@@ -79,9 +80,10 @@ class BookingCreate(BookingBase):
 class BookingResponse(BookingBase):
     id: int
     customer_id: int
-    worker_id: Optional[int]
+    worker_id: Optional[int] = None
     status: BookingStatusEnum
     created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -101,3 +103,14 @@ class ReviewResponse(ReviewBase):
 
     class Config:
         from_attributes = True
+
+
+class SkillCategoryResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+

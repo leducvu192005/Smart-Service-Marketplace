@@ -32,6 +32,10 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
   String _description = '';
   bool _isAvailable = false;
 
+  // New fields for selectable skill categories
+  List<dynamic> _availableSkills = [];
+  List<String> _selectedSkills = [];
+
   @override
   void initState() {
     super.initState();
@@ -41,8 +45,19 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
   Future<void> _fetchProfile() async {
     if (mounted) setState(() => _isLoading = true);
     try {
+      // 1. Fetch worker profile
       final res = await _apiService.client.get('/workers/me');
       final data = res.data;
+
+      // 2. Fetch all active skill categories
+      List<dynamic> categories = [];
+      try {
+        final catRes = await _apiService.client.get('/workers/skills/categories');
+        categories = catRes.data;
+      } catch (catErr) {
+        debugPrint('Error fetching skills categories: $catErr');
+      }
+
       if (mounted) {
         setState(() {
           _fullName = data['full_name'] ?? '';
@@ -56,6 +71,15 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
           _skills = data['skills'] ?? '';
           _description = data['description'] ?? '';
           _isAvailable = data['is_available'] ?? false;
+          
+          _availableSkills = categories;
+          // Parse skills from database comma-separated format
+          _selectedSkills = _skills
+              .split(',')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
+
           _isLoading = false;
         });
       }
@@ -77,7 +101,14 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
     _formKey.currentState!.save();
     
     setState(() => _isSaving = true);
+    
+    // Obtain AuthProvider instance before async call to avoid using BuildContext across async gap
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
     try {
+      // Compile selected skills back to a comma-separated string
+      _skills = _selectedSkills.join(', ');
+
       final body = {
         'full_name': _fullName,
         'phone': _phone,
@@ -95,7 +126,6 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
       await _apiService.client.put('/workers/me', data: body);
       
       // Update global AuthProvider user cache if needed
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
       await authProvider.checkAuthStatus();
       
       if (mounted) {
@@ -261,7 +291,53 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
           children: [
             _buildDetailRow(label: 'Công việc chuyên môn', value: _jobTitle, icon: Icons.construction_outlined),
             _buildDetailRow(label: 'Kinh nghiệm làm việc', value: '$_experienceYears năm', icon: Icons.history_edu_outlined),
-            _buildDetailRow(label: 'Kỹ năng chuyên sâu', value: _skills, icon: Icons.bolt_outlined),
+            // Custom premium Wrap of Chips for skills
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.bolt_outlined, size: 18, color: Colors.grey.shade400),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Kỹ năng chuyên sâu', style: GoogleFonts.outfit(fontSize: 11, color: Colors.grey.shade400)),
+                        const SizedBox(height: 6),
+                        _selectedSkills.isEmpty
+                            ? Text(
+                                'Chưa cập nhật',
+                                style: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF1E293B), fontWeight: FontWeight.w600),
+                              )
+                            : Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _selectedSkills.map((skill) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: theme.primaryColor.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: theme.primaryColor.withOpacity(0.15)),
+                                    ),
+                                    child: Text(
+                                      skill,
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 12,
+                                        color: theme.primaryColor,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                      ],
+                    ),
+                  )
+                ],
+              ),
+            ),
             _buildDetailRow(label: 'Mô tả thêm', value: _description, icon: Icons.description_outlined),
           ],
         ),
@@ -395,11 +471,85 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
           keyboardType: TextInputType.number,
           onSaved: (val) => _experienceYears = int.tryParse(val ?? '0') ?? 0,
         ),
-        _buildTextField(
-          label: 'Kỹ năng chuyên sâu (Cách nhau bằng dấu phẩy)',
-          initialValue: _skills,
-          icon: Icons.bolt_outlined,
-          onSaved: (val) => _skills = val ?? '',
+        // Selectable skill categories instead of text entry
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade100),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.bolt_outlined, size: 18, color: Colors.grey.shade400),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Kỹ năng chuyên sâu (Chọn từ danh sách)',
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _availableSkills.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Text(
+                            'Không tải được danh mục kỹ năng',
+                            style: GoogleFonts.outfit(fontSize: 12, color: Colors.grey),
+                          ),
+                        ),
+                      )
+                    : Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _availableSkills.map<Widget>((cat) {
+                          final String skillName = cat['name'] ?? '';
+                          final bool isSelected = _selectedSkills.contains(skillName);
+                          return FilterChip(
+                            label: Text(skillName),
+                            labelStyle: GoogleFonts.outfit(
+                              fontSize: 12,
+                              color: isSelected ? Colors.white : const Color(0xFF1E293B),
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                            selected: isSelected,
+                            selectedColor: theme.primaryColor,
+                            checkmarkColor: Colors.white,
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(
+                                color: isSelected ? theme.primaryColor : Colors.grey.shade200,
+                              ),
+                            ),
+                            onSelected: (bool selected) {
+                              setState(() {
+                                if (selected) {
+                                  if (!_selectedSkills.contains(skillName)) {
+                                    _selectedSkills.add(skillName);
+                                  }
+                                } else {
+                                  _selectedSkills.remove(skillName);
+                                }
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+              ],
+            ),
+          ),
         ),
         _buildTextField(
           label: 'Mô tả chi tiết năng lực bản thân',

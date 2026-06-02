@@ -97,7 +97,7 @@ async def get_worker_dashboard(
         
     # 1. Total Jobs (Count of all bookings assigned to this worker)
     total_jobs = db.query(models.Booking).filter(
-        models.Booking.worker_id == current_user.id
+        models.Booking.worker_id == worker.id
     ).count()
     
     # 2. Today's Jobs (Bookings assigned to this worker scheduled today)
@@ -106,14 +106,14 @@ async def get_worker_dashboard(
     end_of_today = datetime.combine(today, time.max)
     
     today_jobs = db.query(models.Booking).filter(
-        models.Booking.worker_id == current_user.id,
+        models.Booking.worker_id == worker.id,
         models.Booking.scheduled_time >= start_of_today,
         models.Booking.scheduled_time <= end_of_today
     ).count()
     
     # 3. Completed Jobs (Bookings assigned to this worker with status = done)
     completed_jobs = db.query(models.Booking).filter(
-        models.Booking.worker_id == current_user.id,
+        models.Booking.worker_id == worker.id,
         models.Booking.status == models.BookingStatusEnum.DONE
     ).count()
     
@@ -208,10 +208,9 @@ async def get_pending_jobs(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_worker)
 ):
-    # Fetch all bookings with status 'pending' and no assigned worker, joined with services
+    # Fetch all bookings with status 'pending', joined with services
     pending_bookings = db.query(models.Booking).join(models.Service).filter(
-        models.Booking.status == models.BookingStatusEnum.PENDING,
-        models.Booking.worker_id == None
+        models.Booking.status == models.BookingStatusEnum.PENDING
     ).all()
     
     result = []
@@ -222,7 +221,8 @@ async def get_pending_jobs(
             "address": b.address,
             "scheduled_time": b.scheduled_time,
             "price": b.service.price if b.service else 0.0,
-            "status": b.status
+            "status": b.status,
+            "note": b.note
         })
     return result
 
@@ -237,6 +237,13 @@ async def accept_job(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_worker)
 ):
+    worker = get_worker_by_user_id(db, current_user.id)
+    if not worker:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Worker profile not found"
+        )
+
     booking = db.query(models.Booking).filter(models.Booking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -244,7 +251,7 @@ async def accept_job(
     if booking.status != models.BookingStatusEnum.PENDING or booking.worker_id is not None:
         raise HTTPException(status_code=400, detail="Booking is not pending or already accepted")
         
-    booking.worker_id = current_user.id
+    booking.worker_id = worker.id
     booking.status = models.BookingStatusEnum.ACCEPTED
     db.commit()
     db.refresh(booking)
@@ -255,7 +262,8 @@ async def accept_job(
         "address": booking.address,
         "scheduled_time": booking.scheduled_time,
         "price": booking.service.price if booking.service else 0.0,
-        "status": booking.status
+        "status": booking.status,
+        "note": booking.note
     }
 
 
@@ -268,9 +276,13 @@ async def get_current_job(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_worker)
 ):
+    worker = get_worker_by_user_id(db, current_user.id)
+    if not worker:
+        return None
+        
     # Fetch job with status IN ('accepted', 'in_progress') for the current worker, joined with services
     current_booking = db.query(models.Booking).join(models.Service).filter(
-        models.Booking.worker_id == current_user.id,
+        models.Booking.worker_id == worker.id,
         models.Booking.status.in_([models.BookingStatusEnum.ACCEPTED, models.BookingStatusEnum.IN_PROGRESS])
     ).first()
     
@@ -283,7 +295,8 @@ async def get_current_job(
         "address": current_booking.address,
         "scheduled_time": current_booking.scheduled_time,
         "price": current_booking.service.price if current_booking.service else 0.0,
-        "status": current_booking.status
+        "status": current_booking.status,
+        "note": current_booking.note
     }
 
 
@@ -297,9 +310,16 @@ async def update_job_status(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_worker)
 ):
+    worker = get_worker_by_user_id(db, current_user.id)
+    if not worker:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Worker profile not found"
+        )
+
     booking = db.query(models.Booking).filter(
         models.Booking.id == booking_id,
-        models.Booking.worker_id == current_user.id
+        models.Booking.worker_id == worker.id
     ).first()
     
     if not booking:
@@ -321,7 +341,8 @@ async def update_job_status(
         "address": booking.address,
         "scheduled_time": booking.scheduled_time,
         "price": booking.service.price if booking.service else 0.0,
-        "status": booking.status
+        "status": booking.status,
+        "note": booking.note
     }
 
 
@@ -334,9 +355,13 @@ async def get_worker_history(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_worker)
 ):
+    worker = get_worker_by_user_id(db, current_user.id)
+    if not worker:
+        return []
+        
     # Fetch all finished bookings assigned to this worker, joined with services
     history_bookings = db.query(models.Booking).join(models.Service).filter(
-        models.Booking.worker_id == current_user.id,
+        models.Booking.worker_id == worker.id,
         models.Booking.status == models.BookingStatusEnum.DONE
     ).all()
     
@@ -348,13 +373,26 @@ async def get_worker_history(
             "address": b.address,
             "scheduled_time": b.scheduled_time,
             "price": b.service.price if b.service else 0.0,
-            "status": b.status
+            "status": b.status,
+            "note": b.note
         })
     return result
 
 
 # ==========================================
-# 8. GET WORKER BY ID (Public Route)
+# 8. GET ACTIVE SKILL CATEGORIES
+# ==========================================
+
+@router.get("/skills/categories", response_model=List[schemas.SkillCategoryResponse])
+async def get_skill_categories(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth_utils.get_current_user)
+):
+    return db.query(models.SkillCategory).filter(models.SkillCategory.is_active == True).all()
+
+
+# ==========================================
+# 9. GET WORKER BY ID (Public Route)
 # ==========================================
 
 @router.get("/{worker_id}", response_model=schemas.WorkerResponse)

@@ -53,13 +53,16 @@ def get_pending_jobs(db: Session = Depends(database.get_db), current_user: model
         
     # In a real app, distance calculation using lat/long would happen here
     bookings = db.query(models.Booking).filter(
-        models.Booking.status == models.BookingStatusEnum.PENDING,
-        models.Booking.worker_id == None
+        models.Booking.status == models.BookingStatusEnum.PENDING
     ).all()
     return bookings
 
 @router.post("/jobs/{booking_id}/accept", response_model=schemas.BookingResponse)
 def accept_job(booking_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_worker)):
+    worker = db.query(models.Worker).filter(models.Worker.user_id == current_user.id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker profile not found")
+        
     booking = db.query(models.Booking).filter(models.Booking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -67,7 +70,7 @@ def accept_job(booking_id: int, db: Session = Depends(database.get_db), current_
     if booking.status != models.BookingStatusEnum.PENDING:
         raise HTTPException(status_code=400, detail="Booking is not pending")
         
-    booking.worker_id = current_user.id
+    booking.worker_id = worker.id
     booking.status = models.BookingStatusEnum.ACCEPTED
     db.commit()
     db.refresh(booking)
@@ -75,9 +78,13 @@ def accept_job(booking_id: int, db: Session = Depends(database.get_db), current_
 
 @router.put("/jobs/{booking_id}/status", response_model=schemas.BookingResponse)
 def update_job_status(booking_id: int, status_update: models.BookingStatusEnum, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_worker)):
+    worker = db.query(models.Worker).filter(models.Worker.user_id == current_user.id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker profile not found")
+        
     booking = db.query(models.Booking).filter(
         models.Booking.id == booking_id,
-        models.Booking.worker_id == current_user.id
+        models.Booking.worker_id == worker.id
     ).first()
     
     if not booking:
@@ -90,24 +97,36 @@ def update_job_status(booking_id: int, status_update: models.BookingStatusEnum, 
 
 @router.get("/history", response_model=List[schemas.BookingResponse])
 def get_worker_history(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_worker)):
+    worker = db.query(models.Worker).filter(models.Worker.user_id == current_user.id).first()
+    if not worker:
+        return []
+        
     bookings = db.query(models.Booking).filter(
-        models.Booking.worker_id == current_user.id,
+        models.Booking.worker_id == worker.id,
         models.Booking.status == models.BookingStatusEnum.DONE
     ).all()
     return bookings
 
 @router.get("/jobs/my", response_model=List[schemas.BookingResponse])
 def get_my_jobs(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_worker)):
+    worker = db.query(models.Worker).filter(models.Worker.user_id == current_user.id).first()
+    if not worker:
+        return []
+        
     bookings = db.query(models.Booking).filter(
-        models.Booking.worker_id == current_user.id,
+        models.Booking.worker_id == worker.id,
         models.Booking.status.in_([models.BookingStatusEnum.ACCEPTED, models.BookingStatusEnum.IN_PROGRESS])
     ).all()
     return bookings
 
 @router.get("/reviews", response_model=List[schemas.ReviewResponse])
 def get_worker_reviews(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_worker)):
+    worker = db.query(models.Worker).filter(models.Worker.user_id == current_user.id).first()
+    if not worker:
+        return []
+        
     worker_bookings = db.query(models.Booking).filter(
-        models.Booking.worker_id == current_user.id,
+        models.Booking.worker_id == worker.id,
         models.Booking.status == models.BookingStatusEnum.DONE
     ).all()
     booking_ids = [b.id for b in worker_bookings]

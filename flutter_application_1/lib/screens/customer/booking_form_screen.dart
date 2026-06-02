@@ -15,6 +15,7 @@ class BookingFormScreen extends StatefulWidget {
 
 class _BookingFormScreenState extends State<BookingFormScreen> {
   final _addressController = TextEditingController();
+  final _noteController = TextEditingController();
   DateTime? _selectedDate;
   bool _isLoading = false;
   
@@ -31,6 +32,7 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
         'service_id': widget.service.id,
         'scheduled_time': _selectedDate!.toIso8601String(),
         'address': _addressController.text,
+        'note': _noteController.text,
       });
       setState(() => _isLoading = false);
       if (mounted) {
@@ -98,6 +100,10 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
             const Text('Địa chỉ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             CustomTextField(hint: 'Nhập chi tiết số nhà, tên đường...', icon: Icons.location_on, controller: _addressController),
+            const SizedBox(height: 24),
+            const Text('Ghi chú (Tùy chọn)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            CustomTextField(hint: 'Nhập ghi chú hoặc yêu cầu đặc biệt cho thợ...', icon: Icons.notes, controller: _noteController),
             const SizedBox(height: 48),
             PrimaryButton(text: 'Xác nhận Đặt lịch', onPressed: _handleBook, isLoading: _isLoading),
           ],

@@ -41,6 +41,7 @@ def create_booking(booking: schemas.BookingCreate,
         service_id=booking.service_id,
         scheduled_time=booking.scheduled_time,
         address=booking.address,
+        note=booking.note,
         status=models.BookingStatusEnum.PENDING
     )
     db.add(new_booking)
@@ -94,8 +95,8 @@ def create_review(review: schemas.ReviewCreate,
     
     # Update worker rating
     if booking.worker_id:
-        worker_profile = db.query(models.WorkerProfile).filter(models.WorkerProfile.user_id == booking.worker_id).first()
-        if worker_profile:
+        worker_info = db.query(models.Worker).filter(models.Worker.id == booking.worker_id).first()
+        if worker_info:
             worker_bookings = db.query(models.Booking).filter(
                 models.Booking.worker_id == booking.worker_id,
                 models.Booking.status == models.BookingStatusEnum.DONE
@@ -106,7 +107,15 @@ def create_review(review: schemas.ReviewCreate,
             
             total_rating = sum([r.rating for r in all_reviews]) + review.rating
             count = len(all_reviews) + 1
-            worker_profile.rating = total_rating / count
+            avg_rating = total_rating / count
+            
+            worker_info.rating = avg_rating
+            worker_info.total_reviews = count
+            
+            # Sync to legacy WorkerProfile for backward compatibility
+            worker_profile = db.query(models.WorkerProfile).filter(models.WorkerProfile.user_id == worker_info.user_id).first()
+            if worker_profile:
+                worker_profile.rating = avg_rating
 
     db.commit()
     db.refresh(new_review)

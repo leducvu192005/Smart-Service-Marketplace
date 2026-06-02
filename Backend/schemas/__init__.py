@@ -4,6 +4,7 @@ from .core import (
     ServiceBase, ServiceCreate, ServiceResponse,
     ServiceCategoryBase, ServiceCategoryResponse,
     BookingBase, BookingCreate, BookingResponse,
-    ReviewBase, ReviewCreate, ReviewResponse
+    ReviewBase, ReviewCreate, ReviewResponse,
+    SkillCategoryResponse
 )
 from .worker import WorkerCreate, WorkerUpdate, WorkerResponse

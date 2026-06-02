@@ -285,7 +285,8 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
     final String serviceName = _job['service_name'];
     final String address = _job['address'];
     final String timeStr = _job['scheduled_time'];
-    final double price = (_job['price'] as num).toDouble();
+    final double price = (_job['price'] as num?)?.toDouble() ?? 0.0;
+    final String? note = _job['note'];
 
     return Container(
       width: double.infinity,
@@ -351,6 +352,16 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
             icon: Icons.monetization_on_outlined,
             valueColor: theme.primaryColor,
           ),
+
+          // Customer Note if available
+          if (note != null && note.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _buildInfoRow(
+              label: 'Ghi chú khách hàng',
+              value: note,
+              icon: Icons.notes_outlined,
+            ),
+          ],
         ],
       ),
     );

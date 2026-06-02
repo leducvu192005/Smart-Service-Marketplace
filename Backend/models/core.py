@@ -31,7 +31,6 @@ class User(Base):
     worker_profile = relationship("WorkerProfile", back_populates="user", uselist=False)
     worker_info = relationship("Worker", back_populates="user", uselist=False)
     bookings_as_customer = relationship("Booking", foreign_keys="[Booking.customer_id]", back_populates="customer")
-    bookings_as_worker = relationship("Booking", foreign_keys="[Booking.worker_id]", back_populates="worker")
 
 class WorkerProfile(Base):
     __tablename__ = "worker_profiles"
@@ -73,16 +72,18 @@ class Booking(Base):
     __tablename__ = "bookings"
     
     id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, ForeignKey("users.id"))
-    worker_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    service_id = Column(Integer, ForeignKey("services.id"))
-    scheduled_time = Column(DateTime)
-    address = Column(String(255))
-    status = Column(Enum(BookingStatusEnum), default=BookingStatusEnum.PENDING)
+    customer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    worker_id = Column(Integer, ForeignKey("workers.id", ondelete="SET NULL"), nullable=True)
+    service_id = Column(Integer, ForeignKey("services.id", ondelete="RESTRICT"), nullable=False)
+    scheduled_time = Column(DateTime, nullable=False)
+    address = Column(Text, nullable=False)
+    note = Column(Text, nullable=True)
+    status = Column(String(30), default="pending", nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     customer = relationship("User", foreign_keys=[customer_id], back_populates="bookings_as_customer")
-    worker = relationship("User", foreign_keys=[worker_id], back_populates="bookings_as_worker")
+    worker = relationship("Worker", foreign_keys=[worker_id], back_populates="bookings")
     service = relationship("Service", back_populates="bookings")
     review = relationship("Review", back_populates="booking", uselist=False)
 
@@ -96,3 +97,15 @@ class Review(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     booking = relationship("Booking", back_populates="review")
+
+
+class SkillCategory(Base):
+    __tablename__ = "skill_categories"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+

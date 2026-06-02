@@ -172,7 +172,7 @@ class _PendingJobsScreenState extends State<PendingJobsScreen> {
     final String serviceName = job['service_name'];
     final String address = job['address'];
     final String timeStr = job['scheduled_time'];
-    final double price = (job['price'] as num).toDouble();
+    final double price = (job['price'] as num?)?.toDouble() ?? 0.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -263,6 +263,33 @@ class _PendingJobsScreenState extends State<PendingJobsScreen> {
               ),
             ],
           ),
+          
+          // Customer Note if available
+          if (job['note'] != null && (job['note'] as String).isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.notes_outlined,
+                  size: 16,
+                  color: Colors.grey,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    job['note'],
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          
           const SizedBox(height: 20),
 
           // Accept button
