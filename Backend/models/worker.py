@@ -50,6 +50,7 @@ class Worker(Base):
     
     # Status & Timestamps
     status = Column(String(20), default="pending") # e.g. pending, active, suspended
+    wallet_balance = Column(Float, default=0.0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

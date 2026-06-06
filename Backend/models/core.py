@@ -109,3 +109,95 @@ class SkillCategory(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+class Ticket(Base):
+    __tablename__ = "tickets"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    creator_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    booking_id = Column(Integer, ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    status = Column(String(30), default="pending")  # pending, in_progress, closed
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    creator = relationship("User", foreign_keys=[creator_id])
+    booking = relationship("Booking")
+
+
+class WithdrawalRequest(Base):
+    __tablename__ = "withdrawal_requests"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    worker_id = Column(Integer, ForeignKey("workers.id", ondelete="CASCADE"), nullable=False)
+    amount = Column(Float, nullable=False)
+    status = Column(String(30), default="pending")  # pending, approved, rejected
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    worker = relationship("Worker")
+
+
+class RefundRequest(Base):
+    __tablename__ = "refund_requests"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    booking_id = Column(Integer, ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
+    reason = Column(Text, nullable=False)
+    amount = Column(Float, nullable=False)
+    status = Column(String(30), default="pending")  # pending, approved, rejected
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    booking = relationship("Booking")
+
+
+class Voucher(Base):
+    __tablename__ = "vouchers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), unique=True, index=True, nullable=False)
+    discount_amount = Column(Float, nullable=False)
+    is_active = Column(Boolean, default=True)
+    expiry_date = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=False)
+    recipient_role = Column(String(50), default="all")  # all, customer, worker
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SupportActivityLog(Base):
+    __tablename__ = "support_activity_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    support_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    action = Column(String(100), nullable=False)
+    details = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    support = relationship("User")
+
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    worker_id = Column(Integer, ForeignKey("workers.id", ondelete="CASCADE"), nullable=False)
+    booking_id = Column(Integer, ForeignKey("bookings.id", ondelete="SET NULL"), nullable=True)
+    amount = Column(Float, nullable=False)  # positive for earnings, negative for deductions/withdrawals
+    type = Column(String(50), nullable=False)  # earnings, commission, withdrawal, refund
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    worker = relationship("Worker")
+    booking = relationship("Booking")
+
+

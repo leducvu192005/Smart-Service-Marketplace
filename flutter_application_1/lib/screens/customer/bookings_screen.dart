@@ -133,6 +133,95 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
+  Future<void> _showComplaintDialog(int bookingId) async {
+    final titleController = TextEditingController();
+    final descriptionController = TextEditingController();
+    bool isSubmitting = false;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Gửi khiếu nại / hỗ trợ', textAlign: TextAlign.center),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(
+                      labelText: 'Tiêu đề',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: InputDecoration(
+                      hintText: 'Mô tả chi tiết vấn đề bạn gặp phải...',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    maxLines: 4,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting ? null : () async {
+                    final title = titleController.text.trim();
+                    final desc = descriptionController.text.trim();
+                    if (title.isEmpty || desc.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Vui lòng nhập đầy đủ tiêu đề và mô tả'))
+                      );
+                      return;
+                    }
+                    setStateDialog(() => isSubmitting = true);
+                    try {
+                      await _apiService.client.post('/customer/tickets', data: {
+                        'booking_id': bookingId,
+                        'title': title,
+                        'description': desc,
+                      });
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Gửi khiếu nại thành công! Nhân viên hỗ trợ sẽ liên hệ sớm.'))
+                        );
+                      }
+                    } catch (e) {
+                      setStateDialog(() => isSubmitting = false);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Lỗi: $e'))
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: isSubmitting 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Gửi khiếu nại'),
+                ),
+              ],
+            );
+          }
+        );
+      }
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,18 +284,48 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                 if (booking.status == 'done') ...[
                                   const SizedBox(height: 16),
                                   const Divider(),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: () => _showReviewDialog(booking.id),
+                                          icon: const Icon(Icons.star, color: Colors.amber),
+                                          label: const Text('Đánh giá thợ'),
+                                          style: OutlinedButton.styleFrom(
+                                            side: const BorderSide(color: Colors.amber),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: () => _showComplaintDialog(booking.id),
+                                          icon: const Icon(Icons.feedback_outlined, color: Colors.red),
+                                          label: const Text('Khiếu nại'),
+                                          style: OutlinedButton.styleFrom(
+                                            side: const BorderSide(color: Colors.red),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                ] else if (booking.status != 'cancelled') ...[
+                                  const SizedBox(height: 16),
+                                  const Divider(),
                                   SizedBox(
                                     width: double.infinity,
                                     child: OutlinedButton.icon(
-                                      onPressed: () => _showReviewDialog(booking.id),
-                                      icon: const Icon(Icons.star, color: Colors.amber),
-                                      label: const Text('Đánh giá thợ'),
+                                      onPressed: () => _showComplaintDialog(booking.id),
+                                      icon: const Icon(Icons.support_agent, color: Colors.red),
+                                      label: const Text('Yêu cầu hỗ trợ'),
                                       style: OutlinedButton.styleFrom(
-                                        side: const BorderSide(color: Colors.amber),
+                                        side: const BorderSide(color: Colors.red),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                       ),
                                     ),
-                                  )
+                                  ),
                                 ]
                               ],
                             ),

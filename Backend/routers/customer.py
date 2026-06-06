@@ -120,3 +120,19 @@ def create_review(review: schemas.ReviewCreate,
     db.commit()
     db.refresh(new_review)
     return new_review
+
+
+@router.post("/tickets", response_model=schemas.TicketResponse)
+def create_ticket(ticket: schemas.TicketCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_customer)):
+    new_ticket = models.Ticket(
+        creator_id=current_user.id,
+        booking_id=ticket.booking_id,
+        title=ticket.title,
+        description=ticket.description,
+        status="pending"
+    )
+    db.add(new_ticket)
+    db.commit()
+    db.refresh(new_ticket)
+    return new_ticket
+

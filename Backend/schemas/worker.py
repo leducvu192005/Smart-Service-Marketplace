@@ -39,8 +39,10 @@ class WorkerResponse(WorkerBase):
     total_reviews: int
     total_jobs: int
     status: str
+    wallet_balance: float = 0.0
     created_at: datetime
     updated_at: datetime
+
 
     class Config:
         from_attributes = True

@@ -114,3 +114,117 @@ class SkillCategoryResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class TicketCreate(BaseModel):
+    booking_id: Optional[int] = None
+    title: str
+    description: str
+
+
+class TicketResponse(BaseModel):
+    id: int
+    creator_id: int
+    booking_id: Optional[int] = None
+    title: str
+    description: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WithdrawalCreate(BaseModel):
+    amount: float
+
+
+class WithdrawalResponse(BaseModel):
+    id: int
+    worker_id: int
+    amount: float
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RefundRequestCreate(BaseModel):
+    booking_id: int
+    reason: str
+    amount: float
+
+
+class RefundRequestResponse(BaseModel):
+    id: int
+    booking_id: int
+    reason: str
+    amount: float
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class VoucherCreate(BaseModel):
+    code: str
+    discount_amount: float
+    expiry_date: Optional[datetime] = None
+
+
+class VoucherResponse(BaseModel):
+    id: int
+    code: str
+    discount_amount: float
+    is_active: bool
+    expiry_date: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class NotificationCreate(BaseModel):
+    title: str
+    message: str
+    recipient_role: Optional[str] = "all"
+
+
+class NotificationResponse(BaseModel):
+    id: int
+    title: str
+    message: str
+    recipient_role: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SupportActivityLogResponse(BaseModel):
+    id: int
+    support_id: int
+    action: str
+    details: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TransactionResponse(BaseModel):
+    id: int
+    worker_id: int
+    booking_id: Optional[int] = None
+    amount: float
+    type: str
+    description: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+

@@ -7,6 +7,16 @@ from routers import auth, customer, worker, support, admin, workers
 # Create all tables in the database
 models.Base.metadata.create_all(bind=engine)
 
+# Auto migrate wallet_balance column if not exists
+from sqlalchemy import inspect, text
+inspector = inspect(engine)
+if "workers" in inspector.get_table_names():
+    columns = [col["name"] for col in inspector.get_columns("workers")]
+    if "wallet_balance" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE workers ADD COLUMN wallet_balance FLOAT DEFAULT 0.0"))
+
+
 app = FastAPI(
     title="Smart Service Marketplace API",
     description="API for the 4-role utility service app: Customer, Worker, Support, Admin.",

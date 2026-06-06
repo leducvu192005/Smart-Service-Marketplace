@@ -128,7 +128,8 @@ async def get_worker_dashboard(
         "total_jobs": total_jobs,
         "today_jobs": today_jobs,
         "completed_jobs": completed_jobs,
-        "is_available": worker.is_available
+        "is_available": worker.is_available,
+        "wallet_balance": worker.wallet_balance or 0.0
     }
 
 
@@ -408,3 +409,58 @@ async def get_worker_profile_by_id(
             detail="Worker profile not found"
         )
     return worker
+
+
+# ==========================================
+# 10. SUBMIT WITHDRAWAL REQUEST
+# ==========================================
+
+@router.post("/withdraw", response_model=schemas.WithdrawalResponse)
+async def withdraw_money(
+    payload: schemas.WithdrawalCreate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_worker)
+):
+    worker = get_worker_by_user_id(db, current_user.id)
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker profile not found")
+        
+    if worker.wallet_balance is None:
+        worker.wallet_balance = 0.0
+        
+    if worker.wallet_balance < payload.amount:
+        raise HTTPException(status_code=400, detail="Insufficient wallet balance")
+        
+    req = models.WithdrawalRequest(
+        worker_id=worker.id,
+        amount=payload.amount,
+        status="pending"
+    )
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return req
+
+
+# ==========================================
+# 11. SUBMIT TICKET / COMPLAINT
+# ==========================================
+
+@router.post("/tickets", response_model=schemas.TicketResponse)
+async def create_worker_ticket(
+    ticket: schemas.TicketCreate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_worker)
+):
+    new_ticket = models.Ticket(
+        creator_id=current_user.id,
+        booking_id=ticket.booking_id,
+        title=ticket.title,
+        description=ticket.description,
+        status="pending"
+    )
+    db.add(new_ticket)
+    db.commit()
+    db.refresh(new_ticket)
+    return new_ticket
+
