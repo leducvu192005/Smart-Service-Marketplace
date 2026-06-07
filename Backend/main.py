@@ -7,6 +7,7 @@ from routers import auth, customer, worker, support, admin, workers
 # Create all tables in the database
 models.Base.metadata.create_all(bind=engine)
 
+<<<<<<< HEAD
 # Auto migrate wallet_balance column if not exists
 from sqlalchemy import inspect, text
 inspector = inspect(engine)
@@ -16,6 +17,53 @@ if "workers" in inspector.get_table_names():
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE workers ADD COLUMN wallet_balance FLOAT DEFAULT 0.0"))
 
+=======
+# Automatic data seeder
+def seed_data():
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        category_count = db.query(models.ServiceCategory).count()
+        if category_count == 0:
+            print("Seeding service categories and services...")
+            # 1. Create Categories
+            cleaning_cat = models.ServiceCategory(name="Dọn dẹp", description="Các dịch vụ vệ sinh và dọn dẹp nhà cửa chuyên nghiệp.")
+            it_cat = models.ServiceCategory(name="Giải pháp IT", description="Cài đặt, sửa chữa máy tính và hỗ trợ kỹ thuật.")
+            plumbing_cat = models.ServiceCategory(name="Sửa ống nước", description="Thông tắc bồn rửa, sửa đường ống nước rò rỉ.")
+            electrical_cat = models.ServiceCategory(name="Sửa điện", description="Sửa chập điện, đi lại dây và thiết bị điện thông minh.")
+            
+            db.add_all([cleaning_cat, it_cat, plumbing_cat, electrical_cat])
+            db.commit()
+            db.refresh(cleaning_cat)
+            db.refresh(it_cat)
+            db.refresh(plumbing_cat)
+            db.refresh(electrical_cat)
+            
+            # 2. Create Services
+            services = [
+                models.Service(category_id=cleaning_cat.id, name="Vệ sinh căn hộ chung cư", description="Dọn dẹp, lau chùi, hút bụi căn hộ chung cư trọn gói.", price=50000.0),
+                models.Service(category_id=cleaning_cat.id, name="Dọn dẹp văn phòng theo giờ", description="Dọn dẹp vệ sinh không gian làm việc định kỳ hàng tuần.", price=60000.0),
+                
+                models.Service(category_id=it_cat.id, name="Cài đặt hệ điều hành & phần mềm", description="Cài Windows, MacOS, Office và diệt virus tận nơi.", price=100000.0),
+                models.Service(category_id=it_cat.id, name="Sửa chữa phần cứng máy tính", description="Khắc phục hỏng hóc RAM, ổ cứng, màn hình máy tính.", price=120000.0),
+                
+                models.Service(category_id=plumbing_cat.id, name="Thông tắc bồn rửa & cống", description="Thông nghẹt lavabo, chậu rửa bát và cống thoát nước.", price=80000.0),
+                models.Service(category_id=plumbing_cat.id, name="Sửa chữa đường ống nước rò rỉ", description="Khắc phục vòi nước rò rỉ, thay mới ống nước cũ hỏng.", price=90000.0),
+                
+                models.Service(category_id=electrical_cat.id, name="Lắp đặt đèn & thiết bị thông minh", description="Lắp đèn led, ổ cắm thông minh, công tắc cảm ứng.", price=70000.0),
+                models.Service(category_id=electrical_cat.id, name="Sửa chập điện & đi dây âm tường", description="Xử lý sự cố mất điện, chập cháy nổ cầu chì aptomat.", price=85000.0),
+            ]
+            db.add_all(services)
+            db.commit()
+            print("Database seeded successfully with services and categories!")
+    except Exception as e:
+        db.rollback()
+        print(f"Error seeding database: {e}")
+    finally:
+        db.close()
+
+seed_data()
+>>>>>>> 5285fee (các chức năng của worker)
 
 app = FastAPI(
     title="Smart Service Marketplace API",

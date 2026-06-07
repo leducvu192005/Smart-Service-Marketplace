@@ -82,7 +82,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             : ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: _history.length,
-                itemBuilder: (context, index) {
+                itemBuilder: (context, index) { 
                   final job = _history[index];
                   return _buildHistoryCard(job, theme);
                 },

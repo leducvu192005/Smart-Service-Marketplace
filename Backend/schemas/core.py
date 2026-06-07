@@ -41,20 +41,24 @@ class WorkerProfileResponse(WorkerProfileBase):
         from_attributes = True
 
 # --- Service Schemas ---
+
+
+
+
 class ServiceBase(BaseModel):
     name: str
     description: Optional[str] = None
-    price: float
-
-class ServiceCreate(ServiceBase):
-    category_id: int
+    price: Optional[float] = None
 
 class ServiceResponse(ServiceBase):
     id: int
-    category_id: int
+    category_id: Optional[int] = None
 
     class Config:
         from_attributes = True
+
+class ServiceCreate(ServiceBase):
+    category_id: Optional[int] = None
 
 class ServiceCategoryBase(BaseModel):
     name: str
