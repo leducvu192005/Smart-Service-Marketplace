@@ -57,11 +57,11 @@ def get_dashboard_stats(db: Session = Depends(database.get_db), current_user: mo
     
     # Calculate revenue
     bookings_done = db.query(models.Booking).filter(models.Booking.status == models.BookingStatusEnum.DONE).all()
-    total_revenue = 0
+    total_revenue = 0.0
     for b in bookings_done:
-        if b.service:
-            total_revenue += b.service.price
-            
+        if b.service and b.service.price is not None:
+            total_revenue += float(b.service.price)
+    
     return {
         "total_users": total_users,
         "total_workers": total_workers,
@@ -202,7 +202,7 @@ def reject_refund(request_id: int, db: Session = Depends(database.get_db), curre
 def get_financial_stats(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
     # total revenue from completed bookings
     bookings_done = db.query(models.Booking).filter(models.Booking.status == models.BookingStatusEnum.DONE).all()
-    total_revenue = sum([b.service.price for b in bookings_done if b.service])
+    total_revenue = sum([float(b.service.price or 0.0) for b in bookings_done if b.service])
     system_net_revenue = 0.1 * total_revenue
     
     total_withdrawn = db.query(models.WithdrawalRequest).filter(models.WithdrawalRequest.status == "approved").all()

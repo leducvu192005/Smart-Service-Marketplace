@@ -169,7 +169,7 @@ def confirm_payment(booking_id: int, db: Session = Depends(database.get_db), cur
     booking.status = models.BookingStatusEnum.DONE
     
     # Calculate amount & commission
-    price = booking.service.price if booking.service else 0.0
+    price = float(booking.service.price or 0.0) if booking.service else 0.0
     worker_earnings = 0.9 * price
     
     # Add to worker wallet
