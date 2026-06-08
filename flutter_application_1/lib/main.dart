@@ -5,7 +5,7 @@ import 'theme/app_theme.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/customer/main_screen.dart';
 import 'screens/worker/main_screen.dart';
-import 'screens/admin/admin_main_screen.dart';
+import 'screens/admin/web/admin_web_shell.dart';
 
 void main() {
   runApp(
@@ -29,11 +29,17 @@ class SmartServiceApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       home: Consumer<AuthProvider>(
         builder: (context, auth, _) {
+          if (auth.isLoading) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
           if (auth.isAuthenticated) {
-            // Routing based on role
             if (auth.role == 'customer') return const CustomerMainScreen();
             if (auth.role == 'worker') return const WorkerMainScreen();
-            if (auth.role == 'admin' || auth.role == 'support') return const AdminMainScreen();
+            if (auth.role == 'admin' || auth.role == 'support') {
+              return const AdminWebShell();
+            }
           }
           return const LoginScreen();
         },
