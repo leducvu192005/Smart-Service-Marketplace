@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home.dart';
-import 'calendar_screen.dart';
+import 'worker_my_jobs_screen.dart';
 import '../customer/chat_list_screen.dart';
 import 'profile_screen.dart';
 
@@ -15,7 +15,7 @@ class _WorkerMainScreenState extends State<WorkerMainScreen> {
   int _currentIndex = 0;
   final List<Widget> _screens = [
     const WorkerHomeScreen(),
-    const WorkerCalendarScreen(),
+    const WorkerMyJobsScreen(),
     const ChatListScreen(isWorker: true),
     const WorkerProfileScreen(),
   ];
@@ -39,9 +39,9 @@ class _WorkerMainScreenState extends State<WorkerMainScreen> {
             label: 'Tổng quan',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today_outlined),
-            activeIcon: Icon(Icons.calendar_today),
-            label: 'Lịch tuần',
+            icon: Icon(Icons.assignment_outlined),
+            activeIcon: Icon(Icons.assignment),
+            label: 'Việc của tôi',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.chat_bubble_outline),

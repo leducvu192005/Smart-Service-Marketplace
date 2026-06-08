@@ -71,8 +71,8 @@ def accept_job(booking_id: int, db: Session = Depends(database.get_db), current_
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
         
-    if booking.status != models.BookingStatusEnum.PENDING:
-        raise HTTPException(status_code=400, detail="Booking is not pending")
+    if booking.status != models.BookingStatusEnum.PAID_CONFIRMED:
+        raise HTTPException(status_code=400, detail="Chỉ nhận việc khi khách đã thanh toán")
         
     booking.worker_id = worker.id
     booking.status = models.BookingStatusEnum.ACCEPTED
@@ -116,24 +116,44 @@ def update_job_status(booking_id: int, status_update: models.BookingStatusEnum, 
         if not booking.after_image:
             raise HTTPException(status_code=400, detail="Vui lòng chụp và tải ảnh hoàn thành công việc")
             
-        # Complete work and credit wallet!
+        # Kiểm tra payment: CHỈ cộng tiền khi đã thanh toán qua VNPay
         service = db.query(models.Service).filter(models.Service.id == booking.service_id).first()
-        price = service.price if service else 0.0
-        
-        # Credit wallet
-        worker.wallet_balance = (worker.wallet_balance or 0.0) + price
-        worker.total_jobs = (worker.total_jobs or 0) + 1
-        
-        # Create transaction
-        tx = models.Transaction(
-            worker_id=worker.id,
-            booking_id=booking.id,
-            amount=price,
-            type="earnings",
-            description=f"Thu nhập từ đơn hàng #{booking.id}"
-        )
-        db.add(tx)
-        
+        price = float(service.price) if service and service.price else 0.0
+
+        payment = db.query(models.Payment).filter(
+            models.Payment.booking_id == booking.id,
+            models.Payment.status == "paid",
+        ).first()
+
+        if payment and price > 0:
+            # ✅ Đã thanh toán → release tiền cho worker (90%)
+            worker_earnings = price * 0.90
+            platform_fee = price * 0.10
+
+            worker.wallet_balance = (worker.wallet_balance or 0.0) + worker_earnings
+            worker.total_jobs = (worker.total_jobs or 0) + 1
+
+            # Giao dịch thu nhập
+            tx = models.Transaction(
+                worker_id=worker.id,
+                booking_id=booking.id,
+                amount=worker_earnings,
+                type="earnings",
+                description=f"90% thu nhập đơn #{booking.id} ({worker_earnings:,.0f}đ) — Phí nền tảng 10%: {platform_fee:,.0f}đ"
+            )
+            db.add(tx)
+
+            # Worker notification
+            work_notif = models.UserNotification(
+                user_id=current_user.id,
+                title="Nhận thu nhập mới",
+                message=f"Bạn nhận {worker_earnings:,.0f}đ (90%) từ đơn #{booking.id}."
+            )
+            db.add(work_notif)
+        else:
+            # ⚠️ Chưa thanh toán hoặc giá = 0 → DONE nhưng không cộng tiền
+            worker.total_jobs = (worker.total_jobs or 0) + 1
+
         # Customer notification
         cust_notif = models.UserNotification(
             user_id=booking.customer_id,
@@ -141,14 +161,6 @@ def update_job_status(booking_id: int, status_update: models.BookingStatusEnum, 
             message=f"Dịch vụ {service.name if service else ''} đã hoàn tất. Vui lòng để lại đánh giá!"
         )
         db.add(cust_notif)
-        
-        # Worker notification
-        work_notif = models.UserNotification(
-            user_id=current_user.id,
-            title="Nhận thu nhập mới",
-            message=f"Bạn đã nhận được {price:,.0f}đ từ đơn hàng #{booking.id}."
-        )
-        db.add(work_notif)
         
     booking.status = status_update
     db.commit()
@@ -174,9 +186,8 @@ def get_my_jobs(db: Session = Depends(database.get_db), current_user: models.Use
         return []
         
     bookings = db.query(models.Booking).filter(
-        models.Booking.worker_id == worker.id,
-        models.Booking.status.in_([models.BookingStatusEnum.ACCEPTED, models.BookingStatusEnum.IN_PROGRESS])
-    ).all()
+        models.Booking.worker_id == worker.id
+    ).order_by(models.Booking.id.desc()).all()
     return bookings
 
 @router.get("/reviews", response_model=List[schemas.ReviewResponse])

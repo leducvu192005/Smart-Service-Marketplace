@@ -42,7 +42,7 @@ def create_booking(booking: schemas.BookingCreate,
         scheduled_time=booking.scheduled_time,
         address=booking.address,
         note=booking.note,
-        status=models.BookingStatusEnum.PENDING
+        status=models.BookingStatusEnum.PENDING_PAYMENT
     )
     db.add(new_booking)
     db.commit()

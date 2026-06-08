@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
+import '../customer/about_screen.dart';
 
 class WorkerProfileScreen extends StatefulWidget {
   const WorkerProfileScreen({super.key});
@@ -31,6 +32,10 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
   String _skills = '';
   String _description = '';
   bool _isAvailable = false;
+  
+  double _walletBalance = 0.0;
+  int _totalJobs = 0;
+  double _rating = 0.0;
 
   // New fields for selectable skill categories
   List<dynamic> _availableSkills = [];
@@ -71,6 +76,9 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
           _skills = data['skills'] ?? '';
           _description = data['description'] ?? '';
           _isAvailable = data['is_available'] ?? false;
+          _walletBalance = (data['wallet_balance'] as num?)?.toDouble() ?? 0.0;
+          _totalJobs = (data['total_jobs'] as num?)?.toInt() ?? 0;
+          _rating = (data['rating'] as num?)?.toDouble() ?? 0.0;
           
           _availableSkills = categories;
           // Parse skills from database comma-separated format
@@ -351,6 +359,61 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
           ],
         ),
         const SizedBox(height: 20),
+        _buildInfoCard(
+          title: 'Thống kê doanh thu & Hoạt động',
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatItem(
+                    label: 'Số dư ví',
+                    value: '${_walletBalance.toStringAsFixed(0)}đ',
+                    icon: Icons.account_balance_wallet_outlined,
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatItem(
+                    label: 'Số việc hoàn thành',
+                    value: '$_totalJobs việc',
+                    icon: Icons.task_alt_outlined,
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _buildStatItem(
+              label: 'Đánh giá trung bình',
+              value: '${_rating.toStringAsFixed(1)} / 5.0 ⭐',
+              icon: Icons.star_outline_rounded,
+              color: Colors.orange,
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _buildInfoCard(
+          title: 'Thông tin thêm',
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.info_outline_rounded, size: 20, color: Colors.teal),
+              ),
+              title: Text('Về chúng tôi', style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 13)),
+              subtitle: Text('Tính năng & thông tin ứng dụng', style: GoogleFonts.outfit(fontSize: 11, color: Colors.grey[500])),
+              trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey[400]),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen())),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
       ],
     );
   }
@@ -600,6 +663,45 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
             borderSide: BorderSide(color: Theme.of(context).primaryColor),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.1)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: GoogleFonts.outfit(fontSize: 10, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text(value, style: GoogleFonts.outfit(fontSize: 14, color: const Color(0xFF1E293B), fontWeight: FontWeight.bold)),
+              ],
+            ),
+          )
+        ],
       ),
     );
   }

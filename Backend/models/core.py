@@ -11,6 +11,8 @@ class RoleEnum(str, enum.Enum):
     ADMIN = "admin"
 
 class BookingStatusEnum(str, enum.Enum):
+    PENDING_PAYMENT = "pending_payment"
+    PAID_CONFIRMED = "paid_confirmed"
     PENDING = "pending"
     ACCEPTED = "accepted"
     ON_THE_WAY = "on_the_way"
@@ -273,3 +275,16 @@ class WorkerCalendar(Base):
     worker = relationship("Worker", foreign_keys=[worker_id], backref="calendar_slots")
 
 
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    booking_id = Column(Integer, ForeignKey("bookings.id", ondelete="CASCADE"), unique=True, nullable=False)
+    amount = Column(Float, nullable=False)                      # giá dịch vụ (VND)
+    vnp_txn_ref = Column(String(100), unique=True, nullable=False)  # mã giao dịch nội bộ gửi VNPay
+    vnp_transaction_no = Column(String(100), nullable=True)         # mã VNPay phản hồi
+    status = Column(String(30), default="created", nullable=False)  # created | paid | failed | cancelled
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    booking = relationship("Booking", backref="payment")

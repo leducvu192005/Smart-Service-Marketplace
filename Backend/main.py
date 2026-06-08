@@ -2,10 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
-from routers import auth, customer, worker, support, admin, workers
+from routers import auth, customer, worker, support, admin, workers, payments
 from contextlib import asynccontextmanager
 import subprocess
 import os
+import sys
 
 # 1. Khởi tạo cấu trúc bảng dữ liệu
 models.Base.metadata.create_all(bind=engine)
@@ -29,22 +30,22 @@ if "bookings" in inspector.get_table_names():
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE bookings ADD COLUMN after_image VARCHAR(255)"))
 
-<<<<<<< HEAD
-=======
-# Auto migrate users table columns if not exists
-if "users" in inspector.get_table_names():
-    user_columns = [col["name"] for col in inspector.get_columns("users")]
-    if "phone" not in user_columns:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(20)"))
-
-# Auto migrate tickets table columns if not exists
->>>>>>> 5aa7720 (cập nhật profile)
 if "tickets" in inspector.get_table_names():
     ticket_columns = [col["name"] for col in inspector.get_columns("tickets")]
     if "admin_comment" not in ticket_columns:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE tickets ADD COLUMN admin_comment TEXT"))
+
+# Auto-migrate: cập nhật CHECK constraint cho booking status (thêm pending_payment, paid_confirmed)
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check"))
+        conn.execute(text("""
+            ALTER TABLE bookings ADD CONSTRAINT bookings_status_check
+            CHECK (status IN ('pending_payment','paid_confirmed','pending','accepted','on_the_way','arrived','in_progress','done','cancelled','reviewed'))
+        """))
+except Exception:
+    pass  # constraint đã đúng hoặc không có
 
 
 # 3. Hàm nạp dữ liệu danh mục & dịch vụ tự động
@@ -104,7 +105,7 @@ async def lifespan(app: FastAPI):
         
         if os.path.exists(script_path):
             # Tự động thực thi file script tạo tài khoản thử nghiệm âm thầm
-            subprocess.Popen(["python", script_path])
+            subprocess.Popen([sys.executable, script_path])
             print("🤖 [AUTO-SEED] Đang gọi tập lệnh nạp tài khoản mẫu (Admin/Support)...")
         else:
             print("⚠️ [AUTO-SEED] Không tìm thấy file test_admin_support.py trong thư mục Backend.")
@@ -147,6 +148,7 @@ app.include_router(worker.router)
 app.include_router(workers.router)
 app.include_router(support.router)
 app.include_router(admin.router)
+app.include_router(payments.router)
 
 
 @app.get("/")

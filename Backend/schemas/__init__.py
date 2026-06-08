@@ -16,7 +16,8 @@ from .core import (
     SavedAddressCreate, SavedAddressResponse,
     ChatMessageCreate, ChatMessageResponse,
     UserNotificationResponse,
-    WorkerCalendarCreate, WorkerCalendarResponse
+    WorkerCalendarCreate, WorkerCalendarResponse,
+    PaymentResponse
 )
 from .worker import WorkerCreate, WorkerUpdate, WorkerResponse
 

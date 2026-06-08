@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/app_models.dart';
 import '../../services/api_service.dart';
 import 'chat_detail_screen.dart';
@@ -50,6 +51,42 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
   }
 
+  // Thanh toán VNPay cho booking
+  Future<void> _payForBooking(int bookingId) async {
+    try {
+      final response = await _apiService.client.post(
+        '/payments/create',
+        queryParameters: {'booking_id': bookingId},
+      );
+      final paymentUrl = response.data['payment_url'] as String?;
+      if (paymentUrl == null || paymentUrl.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể tạo link thanh toán')),
+        );
+        return;
+      }
+
+      final uri = Uri.parse(paymentUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        // Khi user quay lại app → refresh để xem kết quả IPN
+        await Future.delayed(const Duration(seconds: 2));
+        _fetchBookings();
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể mở trình duyệt thanh toán')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi thanh toán: $e')),
+      );
+    }
+  }
+
   // Fetch worker profile details by id
   Future<Map<String, dynamic>?> _fetchWorkerDetails(int workerId) async {
     try {
@@ -64,59 +101,71 @@ class _BookingsScreenState extends State<BookingsScreen> {
   // Status mapping
   Map<String, dynamic> _getStatusConfig(String status, BuildContext context) {
     switch (status) {
+      case 'pending_payment':
+        return {
+          'text': 'Chờ thanh toán',
+          'color': const Color(0xFFE53935),
+          'bg': const Color(0xFFE53935).withValues(alpha: 0.08),
+        };
+      case 'paid_confirmed':
+        return {
+          'text': 'Đã thanh toán',
+          'color': const Color(0xFF00897B),
+          'bg': const Color(0xFF00897B).withValues(alpha: 0.08),
+        };
       case 'pending':
         return {
           'text': 'Chờ xác nhận',
           'color': Colors.orange,
-          'bg': Colors.orange.withOpacity(0.08),
+          'bg': Colors.orange.withValues(alpha: 0.08),
         };
       case 'accepted':
         return {
           'text': 'Đã nhận lịch',
           'color': Colors.blue,
-          'bg': Colors.blue.withOpacity(0.08),
+          'bg': Colors.blue.withValues(alpha: 0.08),
         };
       case 'on_the_way':
         return {
           'text': 'Đang di chuyển',
           'color': const Color(0xFF0284C7),
-          'bg': const Color(0xFF0284C7).withOpacity(0.08),
+          'bg': const Color(0xFF0284C7).withValues(alpha: 0.08),
         };
       case 'arrived':
         return {
           'text': 'Đã đến nơi',
           'color': const Color(0xFFD97706),
-          'bg': const Color(0xFFD97706).withOpacity(0.08),
+          'bg': const Color(0xFFD97706).withValues(alpha: 0.08),
         };
       case 'in_progress':
         return {
           'text': 'Đang thực hiện',
           'color': const Color(0xFF6F61E8),
-          'bg': const Color(0xFF6F61E8).withOpacity(0.08),
+          'bg': const Color(0xFF6F61E8).withValues(alpha: 0.08),
         };
       case 'done':
         return {
           'text': 'Đã hoàn thành',
           'color': Colors.green,
-          'bg': Colors.green.withOpacity(0.08),
+          'bg': Colors.green.withValues(alpha: 0.08),
         };
       case 'reviewed':
         return {
           'text': 'Đã đánh giá',
           'color': const Color(0xFF059669),
-          'bg': const Color(0xFF059669).withOpacity(0.08),
+          'bg': const Color(0xFF059669).withValues(alpha: 0.08),
         };
       case 'cancelled':
         return {
           'text': 'Đã hủy',
           'color': Colors.red,
-          'bg': Colors.red.withOpacity(0.08),
+          'bg': Colors.red.withValues(alpha: 0.08),
         };
       default:
         return {
           'text': 'Không xác định',
           'color': Colors.grey,
-          'bg': Colors.grey.withOpacity(0.08),
+          'bg': Colors.grey.withValues(alpha: 0.08),
         };
     }
   }
@@ -370,7 +419,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     final steps = [
-      {'key': 'pending', 'label': 'Chờ nhận'},
+      {'key': 'pending_payment', 'label': 'Thanh toán'},
+      {'key': 'paid_confirmed', 'label': 'Chờ thợ'},
       {'key': 'accepted', 'label': 'Đã nhận'},
       {'key': 'on_the_way', 'label': 'Đang đi'},
       {'key': 'arrived', 'label': 'Đến nơi'},
@@ -379,16 +429,18 @@ class _BookingsScreenState extends State<BookingsScreen> {
     ];
 
     int currentIndex = 0;
-    if (status == 'accepted') {
+    if (status == 'paid_confirmed') {
       currentIndex = 1;
-    } else if (status == 'on_the_way') {
+    } else if (status == 'accepted') {
       currentIndex = 2;
-    } else if (status == 'arrived') {
+    } else if (status == 'on_the_way') {
       currentIndex = 3;
-    } else if (status == 'in_progress') {
+    } else if (status == 'arrived') {
       currentIndex = 4;
-    } else if (status == 'done' || status == 'reviewed') {
+    } else if (status == 'in_progress') {
       currentIndex = 5;
+    } else if (status == 'done' || status == 'reviewed') {
+      currentIndex = 6;
     }
 
     return Container(
@@ -881,30 +933,110 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     );
                   },
                 ),
+              ] else if (booking.status == 'pending_payment') ...[
+                const Divider(color: Color(0xFFECEFF1)),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFFF3E0), Color(0xFFFFE0B2)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.payment_rounded, color: Colors.orange.shade800, size: 22),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Vui lòng thanh toán để thợ có thể nhận việc của bạn.',
+                              style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                color: Colors.orange.shade900,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            _payForBooking(booking.id);
+                          },
+                          icon: const Icon(Icons.account_balance_wallet_rounded, size: 20),
+                          label: Text(
+                            'Thanh toán qua VNPay',
+                            style: GoogleFonts.outfit(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFE53935),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            elevation: 2,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (booking.status == 'paid_confirmed') ...[
+                const Divider(color: Color(0xFFECEFF1)),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2F1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF80CBC4)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF00897B), size: 22),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Đã thanh toán thành công! Đang chờ thợ nhận việc...',
+                          style: GoogleFonts.outfit(
+                            fontSize: 13,
+                            color: const Color(0xFF00695C),
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ] else if (booking.status == 'pending') ...[
                 const Divider(color: Color(0xFFECEFF1)),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
-                    color: Colors.amber.shade50.withOpacity(0.6),
+                    color: Colors.amber.shade50.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.amber.shade100, width: 1),
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.hourglass_empty_rounded,
-                        color: Colors.amber.shade800,
-                        size: 20,
-                      ),
+                      Icon(Icons.hourglass_empty_rounded, color: Colors.amber.shade800, size: 20),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Yêu cầu đang chờ thợ nhận lịch. Chúng tôi sẽ cập nhật thông tin thợ tại đây ngay khi có người nhận việc.',
+                          'Yêu cầu đang chờ thợ nhận lịch.',
                           style: GoogleFonts.outfit(
                             fontSize: 13,
                             color: Colors.amber.shade900,
@@ -1005,7 +1137,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               // Bottom sheet action buttons (Khiếu nại & Đóng)
               Row(
                 children: [
-                  if (booking.status != 'pending') ...[
+                  if (booking.status != 'pending' && booking.status != 'pending_payment' && booking.status != 'paid_confirmed') ...[
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () {

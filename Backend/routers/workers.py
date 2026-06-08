@@ -209,9 +209,9 @@ async def get_pending_jobs(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(get_current_worker)
 ):
-    # Fetch all bookings with status 'pending', joined with services
+    # Fetch all bookings with status 'paid_confirmed' (đã thanh toán, chờ thợ nhận)
     pending_bookings = db.query(models.Booking).join(models.Service).filter(
-        models.Booking.status == models.BookingStatusEnum.PENDING
+        models.Booking.status == models.BookingStatusEnum.PAID_CONFIRMED
     ).all()
     
     result = []
@@ -249,8 +249,8 @@ async def accept_job(
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
         
-    if booking.status != models.BookingStatusEnum.PENDING or booking.worker_id is not None:
-        raise HTTPException(status_code=400, detail="Booking is not pending or already accepted")
+    if booking.status != models.BookingStatusEnum.PAID_CONFIRMED or booking.worker_id is not None:
+        raise HTTPException(status_code=400, detail="Chỉ nhận việc khi khách đã thanh toán")
         
     booking.worker_id = worker.id
     booking.status = models.BookingStatusEnum.ACCEPTED

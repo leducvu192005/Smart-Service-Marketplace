@@ -523,51 +523,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ),
             ),
             const SizedBox(width: 16),
-            GestureDetector(
-              onTap: _loadCurrentLocation,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_isLocating)
-                        const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Color(0xFF7555CF),
-                          ),
-                        )
-                      else
-                        const Icon(
-                          Icons.location_on,
-                          color: Color(0xFF7555CF),
-                          size: 20,
-                        ),
-                      const SizedBox(width: 10),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 100),
-                    child: Text(
-                      _currentLocation,
-                      textAlign: TextAlign.right,
-                      style: GoogleFonts.outfit(
-                        fontSize: 11,
-                        color: const Color(0xFF64748B),
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ],
@@ -578,6 +533,52 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        GestureDetector(
+          onTap: _loadCurrentLocation,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_isLocating)
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF7555CF),
+                      ),
+                    )
+                  else
+                    const Icon(
+                      Icons.location_on,
+                      color: Color(0xFF7555CF),
+                      size: 20,
+                    ),
+                  const SizedBox(width: 10),
+                ],
+              ),
+              const SizedBox(height: 4),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 100),
+                child: Text(
+                  _currentLocation,
+                  textAlign: TextAlign.right,
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    color: const Color(0xFF64748B),
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+
         Text(
           'Nhà thông minh,',
           style: GoogleFonts.outfit(

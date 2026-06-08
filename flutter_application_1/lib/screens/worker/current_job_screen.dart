@@ -65,7 +65,11 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
       
       if (mounted) {
         setState(() {
-          _job = res.data;
+          final updatedJob = Map<String, dynamic>.from(_job);
+          updatedJob['status'] = res.data['status'];
+          updatedJob['before_image'] = res.data['before_image'];
+          updatedJob['after_image'] = res.data['after_image'];
+          _job = updatedJob;
           _isUpdating = false;
         });
 
@@ -174,22 +178,23 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1E293B), // Premium dark theme for worker
+      backgroundColor: const Color(0xFFF8F9FC),
       appBar: AppBar(
         title: Text(
           'Đơn hàng đang thực hiện',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18, color: const Color(0xFF1E293B)),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF0F172A),
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1E293B),
         elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)))
           : _job == null
               ? _buildEmptyState()
               : SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     children: [
@@ -214,16 +219,17 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const SizedBox(height: 100),
             Container(
               padding: const EdgeInsets.all(24),
               decoration: const BoxDecoration(
-                color: Color(0xFF0F172A),
+                color: Color(0xFFEEF2F6),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.check_circle_outline,
                 size: 64,
-                color: Colors.white54,
+                color: Color(0xFF94A3B8),
               ),
             ),
             const SizedBox(height: 24),
@@ -232,7 +238,7 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
               style: GoogleFonts.outfit(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: const Color(0xFF1E293B),
               ),
             ),
             const SizedBox(height: 8),
@@ -241,7 +247,7 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
               textAlign: TextAlign.center,
               style: GoogleFonts.outfit(
                 fontSize: 14,
-                color: Colors.white54,
+                color: const Color(0xFF64748B),
                 fontWeight: FontWeight.w400,
               ),
             ),
@@ -271,9 +277,16 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF334155)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -290,7 +303,7 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
                   children: [
                     CircleAvatar(
                       radius: 12,
-                      backgroundColor: isPassed ? theme.primaryColor : const Color(0xFF334155),
+                      backgroundColor: isPassed ? const Color(0xFF4F46E5) : const Color(0xFFE2E8F0),
                       child: isPassed && !isCurrent
                           ? const Icon(Icons.check, size: 12, color: Colors.white)
                           : Text(
@@ -298,7 +311,7 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
                               style: TextStyle(
                                 fontSize: 9,
                                 fontWeight: FontWeight.bold,
-                                color: isPassed ? Colors.white : Colors.white54,
+                                color: isPassed ? Colors.white : const Color(0xFF64748B),
                               ),
                             ),
                     ),
@@ -307,7 +320,7 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
                       step['label']!,
                       style: GoogleFonts.outfit(
                         fontSize: 9,
-                        color: isPassed ? Colors.white : Colors.white30,
+                        color: isPassed ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
                         fontWeight: isPassed ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
@@ -317,7 +330,7 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
                   Expanded(
                     child: Container(
                       height: 2,
-                      color: index < currentIndex ? theme.primaryColor : const Color(0xFF334155),
+                      color: index < currentIndex ? const Color(0xFF4F46E5) : const Color(0xFFE2E8F0),
                       margin: const EdgeInsets.only(bottom: 14),
                     ),
                   ),
@@ -340,9 +353,16 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF334155)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -351,7 +371,7 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
             'CHI TIẾT DỊCH VỤ',
             style: GoogleFonts.outfit(
               fontSize: 11,
-              color: Colors.white38,
+              color: const Color(0xFF94A3B8),
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,
             ),
@@ -362,11 +382,11 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
             style: GoogleFonts.outfit(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: const Color(0xFF1E293B),
             ),
           ),
           const SizedBox(height: 20),
-          const Divider(height: 1, color: Color(0xFF334155)),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
           const SizedBox(height: 20),
           _buildInfoRow(label: 'Địa chỉ thực hiện', value: address, icon: Icons.location_on_outlined),
           const SizedBox(height: 20),
@@ -374,9 +394,9 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
           const SizedBox(height: 20),
           _buildInfoRow(
             label: 'Đơn giá thanh toán',
-            value: '${price.toStringAsFixed(0)}đ',
+            value: '${price.toStringAsFixed(0).replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (Match m) => "${m[1]},")}đ',
             icon: Icons.monetization_on_outlined,
-            valueColor: Colors.greenAccent,
+            valueColor: const Color(0xFF4F46E5),
           ),
           if (note != null && note.isNotEmpty) ...[
             const SizedBox(height: 20),
@@ -394,10 +414,10 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
+            color: const Color(0xFFF1F5F9),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, size: 18, color: Colors.white70),
+          child: Icon(icon, size: 18, color: const Color(0xFF475569)),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -406,12 +426,12 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
             children: [
               Text(
                 label,
-                style: GoogleFonts.outfit(fontSize: 12, color: Colors.white38, fontWeight: FontWeight.w500),
+                style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 4),
               Text(
                 value,
-                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600, color: valueColor ?? Colors.white),
+                style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600, color: valueColor ?? const Color(0xFF1E293B)),
               ),
             ],
           ),
@@ -435,7 +455,7 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
       children: [
         Text(
           'HÌNH ẢNH MINH CHỨNG CÔNG VIỆC',
-          style: GoogleFonts.outfit(fontSize: 11, color: Colors.white38, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+          style: GoogleFonts.outfit(fontSize: 11, color: const Color(0xFF94A3B8), fontWeight: FontWeight.bold, letterSpacing: 1.2),
         ),
         const SizedBox(height: 12),
         Row(
@@ -479,9 +499,16 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
       child: Container(
         height: 140,
         decoration: BoxDecoration(
-          color: const Color(0xFF0F172A),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: disabled ? const Color(0xFF1E293B) : const Color(0xFF334155), width: 1.5),
+          border: Border.all(color: disabled ? const Color(0xFFF1F5F9) : const Color(0xFFE2E8F0), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.01),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: fullUrl != null
             ? ClipRRect(
@@ -497,16 +524,16 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.add_a_photo_outlined, color: Colors.white70, size: 28),
+                    const Icon(Icons.add_a_photo_outlined, color: Color(0xFF64748B), size: 28),
                     const SizedBox(height: 8),
                     Text(
                       title,
-                      style: GoogleFonts.outfit(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.bold),
+                      style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF1E293B), fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       disabled ? 'Chờ trạng thái thích hợp' : 'Chụp hình / Tải lên',
-                      style: GoogleFonts.outfit(fontSize: 9, color: Colors.white30),
+                      style: GoogleFonts.outfit(fontSize: 9, color: const Color(0xFF94A3B8)),
                     ),
                   ],
                 ),
@@ -547,9 +574,10 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
       child: ElevatedButton(
         onPressed: (_isUpdating || disabled) ? null : () => _updateStatus(nextStatus),
         style: ElevatedButton.styleFrom(
-          backgroundColor: disabled ? Colors.grey.shade800 : theme.primaryColor,
+          backgroundColor: disabled ? const Color(0xFFE2E8F0) : const Color(0xFF4F46E5),
           foregroundColor: Colors.white,
-          disabledBackgroundColor: Colors.grey.shade900,
+          disabledBackgroundColor: const Color(0xFFE2E8F0),
+          disabledForegroundColor: const Color(0xFF94A3B8),
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
@@ -557,7 +585,7 @@ class _CurrentJobScreenState extends State<CurrentJobScreen> {
             ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
             : Text(
                 btnText,
-                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: disabled ? Colors.white30 : Colors.white),
+                style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: disabled ? const Color(0xFF94A3B8) : Colors.white),
               ),
       ),
     );

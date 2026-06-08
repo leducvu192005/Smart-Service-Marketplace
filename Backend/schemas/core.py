@@ -329,3 +329,17 @@ class WorkerCalendarResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+# --- Payment Schemas (VNPay) ---
+class PaymentResponse(BaseModel):
+    id: int
+    booking_id: int
+    amount: float
+    vnp_txn_ref: str
+    vnp_transaction_no: Optional[str] = None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
