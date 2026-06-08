@@ -29,6 +29,17 @@ if "bookings" in inspector.get_table_names():
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE bookings ADD COLUMN after_image VARCHAR(255)"))
 
+<<<<<<< HEAD
+=======
+# Auto migrate users table columns if not exists
+if "users" in inspector.get_table_names():
+    user_columns = [col["name"] for col in inspector.get_columns("users")]
+    if "phone" not in user_columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(20)"))
+
+# Auto migrate tickets table columns if not exists
+>>>>>>> 5aa7720 (cập nhật profile)
 if "tickets" in inspector.get_table_names():
     ticket_columns = [col["name"] for col in inspector.get_columns("tickets")]
     if "admin_comment" not in ticket_columns:

@@ -27,6 +27,7 @@ class User(Base):
     username = Column(String(50), unique=True, index=True)
     email = Column(String(100), unique=True, index=True)
     full_name = Column(String(100))
+    phone = Column(String(20), nullable=True)
     hashed_password = Column(String(255))
     role = Column(Enum(RoleEnum), default=RoleEnum.CUSTOMER)
     is_active = Column(Boolean, default=True)

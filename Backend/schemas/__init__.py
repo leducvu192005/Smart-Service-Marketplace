@@ -1,5 +1,5 @@
 from .core import (
-    UserBase, UserCreate, UserResponse,
+    UserBase, UserCreate, UserResponse, UserUpdate, WorkerApplicationCreate,
     WorkerProfileBase, WorkerProfileUpdate, WorkerProfileResponse,
     ServiceBase, ServiceCreate, ServiceResponse,
     ServiceCategoryBase, ServiceCategoryResponse,

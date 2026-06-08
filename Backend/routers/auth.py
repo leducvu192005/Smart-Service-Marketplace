@@ -59,6 +59,29 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 def get_current_logged_in_user(current_user: models.User = Depends(auth_utils.get_current_user)):
     return current_user
 
+@router.put("/me", response_model=schemas.UserResponse)
+def update_my_profile(
+    update: schemas.UserUpdate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth_utils.get_current_user)
+):
+    if update.full_name is not None:
+        current_user.full_name = update.full_name
+    if update.email is not None:
+        # Kiểm tra email không trùng với người khác
+        existing = db.query(models.User).filter(
+            models.User.email == update.email,
+            models.User.id != current_user.id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email đã được sử dụng bởi tài khoản khác")
+        current_user.email = update.email
+    if update.phone is not None:
+        current_user.phone = update.phone
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
 @router.get("/users/{user_id}", response_model=schemas.UserResponse)
 def get_user_by_id(user_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth_utils.get_current_user)):
     user = db.query(models.User).filter(models.User.id == user_id).first()

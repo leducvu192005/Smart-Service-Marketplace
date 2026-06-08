@@ -267,3 +267,47 @@ def create_ticket(ticket: schemas.TicketCreate, db: Session = Depends(database.g
     db.refresh(new_ticket)
     return new_ticket
 
+
+@router.post("/apply-worker", response_model=schemas.TicketResponse)
+def apply_become_worker(
+    application: schemas.WorkerApplicationCreate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_customer)
+):
+    """
+    Khách hàng gửi đơn đăng ký trở thành Worker.
+    Đơn được lưu dưới dạng Ticket với tiêu đề '[ĐĂNG KÝ THỢ]' để admin xét duyệt.
+    """
+    # Kiểm tra đã có đơn đang chờ duyệt chưa
+    existing = db.query(models.Ticket).filter(
+        models.Ticket.creator_id == current_user.id,
+        models.Ticket.title.like("[ĐĂNG KÝ THỢ]%"),
+        models.Ticket.status == "pending"
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="Bạn đã có đơn đăng ký đang chờ xét duyệt. Vui lòng chờ Admin phản hồi."
+        )
+
+    description = (
+        f"HỌ TÊN: {application.full_name}\n"
+        f"SĐT: {application.phone}\n"
+        f"SỐ CCCD/CMND: {application.id_card_number}\n"
+        f"ĐỊA CHỈ: {application.address}\n"
+        f"KỸ NĂNG: {application.skills}\n"
+        f"KINH NGHIỆM: {application.experience}\n"
+        f"GIỚI THIỆU: {application.bio or 'Không có'}"
+    )
+
+    ticket = models.Ticket(
+        creator_id=current_user.id,
+        booking_id=None,
+        title=f"[ĐĂNG KÝ THỢ] {current_user.full_name} (ID:{current_user.id})",
+        description=description,
+        status="pending"
+    )
+    db.add(ticket)
+    db.commit()
+    db.refresh(ticket)
+    return ticket

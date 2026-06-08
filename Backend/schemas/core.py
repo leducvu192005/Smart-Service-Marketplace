@@ -16,9 +16,24 @@ class UserCreate(UserBase):
 class UserResponse(UserBase):
     id: int
     is_active: bool
+    phone: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+
+class WorkerApplicationCreate(BaseModel):
+    full_name: str
+    phone: str
+    skills: str               # Danh sách kỹ năng (dấu phẩy)
+    experience: str           # Mô tả kinh nghiệm
+    id_card_number: str       # Số CCCD/CMND
+    address: str              # Địa chỉ thường trú
+    bio: Optional[str] = None # Giới thiệu bản thân
 
 # --- Worker Profile Schemas ---
 class WorkerProfileBase(BaseModel):
