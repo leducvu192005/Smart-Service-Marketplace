@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Động Cơ 1: Chạy Backend FastAPI",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": [
+        "Backend.main:app",
+        "--reload"
+      ],
+      "jinja": true,
+      "env": {
+        "PYTHONPATH": "Backend"
+      },
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Động Cơ 2: Chạy Frontend Flutter Web",
+      "type": "dart",
+      "request": "launch",
+      "program": "flutter_application_1/lib/main.dart",
+      "args": [
+        "-d",
+        "chrome"
+      ]
+    }
+  ],
+  "compounds": [
+    {
+      "name": "🚀 CHẠY TOÀN BỘ DỰ ÁN",
+      "configurations": [
+        "Động Cơ 1: Chạy Backend FastAPI",
+        "Động Cơ 2: Chạy Frontend Flutter Web"
+      ],
+      "stopAll": true
+    }
+  ]
+}
