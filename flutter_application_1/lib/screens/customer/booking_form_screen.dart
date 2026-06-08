@@ -603,21 +603,11 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                       ),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: Stack(
-                      children: [
-                        // Centered Clean Cut-out Image of Serviceman
-                        Align(
-                          alignment: Alignment.bottomCenter,
-                          child: FractionallySizedBox(
-                            heightFactor: 0.85,
-                            child: Image.asset(
-                              _getHeroImage(),
-                              fit: BoxFit.contain,
-                              alignment: Alignment.bottomCenter,
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: Image.asset(
+                      _getHeroImage(),
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -939,29 +929,8 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                     ),
                   ),
                 ),
-                // Circular Cart Button
-                InkWell(
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Giỏ hàng trống!'))
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(24),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-                    ),
-                    child: const Icon(
-                      Icons.shopping_cart_outlined,
-                      color: Colors.black,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                // Cart placeholder to balance layout
+                const SizedBox(width: 48, height: 48),
               ],
             ),
           ),

@@ -297,7 +297,9 @@ async def get_current_job(
         "scheduled_time": current_booking.scheduled_time,
         "price": current_booking.service.price if current_booking.service else 0.0,
         "status": current_booking.status,
-        "note": current_booking.note
+        "note": current_booking.note,
+        "before_image": current_booking.before_image,
+        "after_image": current_booking.after_image
     }
 
 

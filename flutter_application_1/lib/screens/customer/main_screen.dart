@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'bookings_screen.dart';
 import 'profile_screen.dart';
+import 'chat_list_screen.dart';
 
 class CustomerMainScreen extends StatefulWidget {
   const CustomerMainScreen({super.key});
@@ -15,24 +16,7 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
   final List<Widget> _screens = [
     const CustomerHomeScreen(),
     const BookingsScreen(),
-    const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.forum_outlined, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
-          Text(
-            'Trung tâm Hỗ trợ & Trò chuyện',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Kết nối trực tiếp đến thợ đang thực hiện dịch vụ của bạn.',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-        ],
-      ),
-    ),
+    const ChatListScreen(isWorker: false),
     const ProfileScreen(),
   ];
 

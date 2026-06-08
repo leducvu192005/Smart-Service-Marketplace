@@ -39,6 +39,7 @@ dependencies:
   shared_preferences: any
   google_fonts: any
   geolocator: any
+  image_picker: ^1.2.2
 
 dev_dependencies:
   flutter_test:

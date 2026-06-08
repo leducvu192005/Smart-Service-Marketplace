@@ -13,9 +13,12 @@ class RoleEnum(str, enum.Enum):
 class BookingStatusEnum(str, enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
+    ON_THE_WAY = "on_the_way"
+    ARRIVED = "arrived"
     IN_PROGRESS = "in_progress"
     DONE = "done"
     CANCELLED = "cancelled"
+    REVIEWED = "reviewed"
 
 class User(Base):
     __tablename__ = "users"
@@ -79,6 +82,8 @@ class Booking(Base):
     address = Column(Text, nullable=False)
     note = Column(Text, nullable=True)
     status = Column(String(30), default="pending", nullable=False)
+    before_image = Column(String(255), nullable=True)
+    after_image = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -119,6 +124,7 @@ class Ticket(Base):
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=False)
     status = Column(String(30), default="pending")  # pending, in_progress, closed
+    admin_comment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -199,5 +205,70 @@ class Transaction(Base):
     
     worker = relationship("Worker")
     booking = relationship("Booking")
+
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    service_id = Column(Integer, ForeignKey("services.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    customer = relationship("User", foreign_keys=[customer_id], backref="favorites")
+    service = relationship("Service", foreign_keys=[service_id], backref="favorited_by")
+
+
+class SavedAddress(Base):
+    __tablename__ = "saved_addresses"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    customer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    label = Column(String(50), nullable=False)  # e.g., Home, Office
+    address_text = Column(Text, nullable=False)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    customer = relationship("User", foreign_keys=[customer_id], backref="saved_addresses")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    booking_id = Column(Integer, ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    message_text = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    booking = relationship("Booking", foreign_keys=[booking_id], backref="chat_messages")
+    sender = relationship("User", foreign_keys=[sender_id], backref="sent_messages")
+
+
+class UserNotification(Base):
+    __tablename__ = "user_notifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=False)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User", foreign_keys=[user_id], backref="user_notifications")
+
+
+class WorkerCalendar(Base):
+    __tablename__ = "worker_calendars"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    worker_id = Column(Integer, ForeignKey("workers.id", ondelete="CASCADE"), nullable=False)
+    date = Column(String(10), nullable=False)  # Format: YYYY-MM-DD
+    is_off = Column(Boolean, default=False)
+    note = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    worker = relationship("Worker", foreign_keys=[worker_id], backref="calendar_slots")
 
 

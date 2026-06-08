@@ -7,7 +7,6 @@ from routers import auth, customer, worker, support, admin, workers
 # Create all tables in the database
 models.Base.metadata.create_all(bind=engine)
 
-<<<<<<< HEAD
 # Auto migrate wallet_balance column if not exists
 from sqlalchemy import inspect, text
 inspector = inspect(engine)
@@ -17,7 +16,23 @@ if "workers" in inspector.get_table_names():
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE workers ADD COLUMN wallet_balance FLOAT DEFAULT 0.0"))
 
-=======
+# Auto migrate bookings table columns if not exists
+if "bookings" in inspector.get_table_names():
+    booking_columns = [col["name"] for col in inspector.get_columns("bookings")]
+    if "before_image" not in booking_columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE bookings ADD COLUMN before_image VARCHAR(255)"))
+    if "after_image" not in booking_columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE bookings ADD COLUMN after_image VARCHAR(255)"))
+
+# Auto migrate tickets table columns if not exists
+if "tickets" in inspector.get_table_names():
+    ticket_columns = [col["name"] for col in inspector.get_columns("tickets")]
+    if "admin_comment" not in ticket_columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE tickets ADD COLUMN admin_comment TEXT"))
+
 # Automatic data seeder
 def seed_data():
     from database import SessionLocal
@@ -63,13 +78,19 @@ def seed_data():
         db.close()
 
 seed_data()
->>>>>>> 5285fee (các chức năng của worker)
+
+from fastapi.staticfiles import StaticFiles
+import os
 
 app = FastAPI(
     title="Smart Service Marketplace API",
     description="API for the 4-role utility service app: Customer, Worker, Support, Admin.",
     version="1.0.0"
 )
+
+# Ensure static directory exists
+os.makedirs("static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Thêm cấu hình CORS để cho phép Flutter Edge/Chrome kết nối tới
 app.add_middleware(

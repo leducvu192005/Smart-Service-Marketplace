@@ -86,6 +86,8 @@ class BookingResponse(BookingBase):
     customer_id: int
     worker_id: Optional[int] = None
     status: BookingStatusEnum
+    before_image: Optional[str] = None
+    after_image: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -132,6 +134,7 @@ class TicketResponse(BaseModel):
     title: str
     description: str
     status: str
+    admin_comment: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -227,6 +230,85 @@ class TransactionResponse(BaseModel):
     amount: float
     type: str
     description: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FavoriteCreate(BaseModel):
+    service_id: int
+
+
+class FavoriteResponse(BaseModel):
+    id: int
+    customer_id: int
+    service_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SavedAddressCreate(BaseModel):
+    label: str
+    address_text: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+
+class SavedAddressResponse(BaseModel):
+    id: int
+    customer_id: int
+    label: str
+    address_text: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ChatMessageCreate(BaseModel):
+    message_text: str
+
+
+class ChatMessageResponse(BaseModel):
+    id: int
+    booking_id: int
+    sender_id: int
+    message_text: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserNotificationResponse(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WorkerCalendarCreate(BaseModel):
+    date: str  # Format: YYYY-MM-DD
+    is_off: bool
+    note: Optional[str] = None
+
+
+class WorkerCalendarResponse(BaseModel):
+    id: int
+    worker_id: int
+    date: str
+    is_off: bool
+    note: Optional[str] = None
     created_at: datetime
 
     class Config:

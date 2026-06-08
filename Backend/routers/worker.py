@@ -1,6 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List
+import os
+import shutil
+import time
+from datetime import datetime, timedelta
 
 import database
 import models
@@ -90,6 +94,62 @@ def update_job_status(booking_id: int, status_update: models.BookingStatusEnum, 
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found or not assigned to you")
         
+    current_status = booking.status
+    
+    if status_update == models.BookingStatusEnum.ON_THE_WAY:
+        if current_status != models.BookingStatusEnum.ACCEPTED:
+            raise HTTPException(status_code=400, detail="Cannot start travel unless booking is accepted")
+            
+    elif status_update == models.BookingStatusEnum.ARRIVED:
+        if current_status != models.BookingStatusEnum.ON_THE_WAY:
+            raise HTTPException(status_code=400, detail="Cannot mark arrived unless on the way")
+            
+    elif status_update == models.BookingStatusEnum.IN_PROGRESS:
+        if current_status != models.BookingStatusEnum.ARRIVED:
+            raise HTTPException(status_code=400, detail="Cannot start progress unless arrived")
+        if not booking.before_image:
+            raise HTTPException(status_code=400, detail="Vui lòng chụp và tải ảnh trước khi làm việc")
+            
+    elif status_update == models.BookingStatusEnum.DONE:
+        if current_status != models.BookingStatusEnum.IN_PROGRESS:
+            raise HTTPException(status_code=400, detail="Cannot mark completed unless in progress")
+        if not booking.after_image:
+            raise HTTPException(status_code=400, detail="Vui lòng chụp và tải ảnh hoàn thành công việc")
+            
+        # Complete work and credit wallet!
+        service = db.query(models.Service).filter(models.Service.id == booking.service_id).first()
+        price = service.price if service else 0.0
+        
+        # Credit wallet
+        worker.wallet_balance = (worker.wallet_balance or 0.0) + price
+        worker.total_jobs = (worker.total_jobs or 0) + 1
+        
+        # Create transaction
+        tx = models.Transaction(
+            worker_id=worker.id,
+            booking_id=booking.id,
+            amount=price,
+            type="earnings",
+            description=f"Thu nhập từ đơn hàng #{booking.id}"
+        )
+        db.add(tx)
+        
+        # Customer notification
+        cust_notif = models.UserNotification(
+            user_id=booking.customer_id,
+            title="Dịch vụ hoàn tất",
+            message=f"Dịch vụ {service.name if service else ''} đã hoàn tất. Vui lòng để lại đánh giá!"
+        )
+        db.add(cust_notif)
+        
+        # Worker notification
+        work_notif = models.UserNotification(
+            user_id=current_user.id,
+            title="Nhận thu nhập mới",
+            message=f"Bạn đã nhận được {price:,.0f}đ từ đơn hàng #{booking.id}."
+        )
+        db.add(work_notif)
+        
     booking.status = status_update
     db.commit()
     db.refresh(booking)
@@ -132,3 +192,161 @@ def get_worker_reviews(db: Session = Depends(database.get_db), current_user: mod
     booking_ids = [b.id for b in worker_bookings]
     reviews = db.query(models.Review).filter(models.Review.booking_id.in_(booking_ids)).all()
     return reviews
+
+
+# ==========================================
+# EXTRA WORKER CALENDAR / WALLET / UPLOAD API
+# ==========================================
+
+@router.get("/calendar", response_model=List[schemas.WorkerCalendarResponse])
+def get_worker_calendar(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_worker)):
+    worker = db.query(models.Worker).filter(models.Worker.user_id == current_user.id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker profile not found")
+    calendar = db.query(models.WorkerCalendar).filter(models.WorkerCalendar.worker_id == worker.id).all()
+    return calendar
+
+@router.post("/calendar/register-off", response_model=schemas.WorkerCalendarResponse)
+def register_off_day(calendar_in: schemas.WorkerCalendarCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_worker)):
+    worker = db.query(models.Worker).filter(models.Worker.user_id == current_user.id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker profile not found")
+    
+    # Check if entry already exists
+    existing = db.query(models.WorkerCalendar).filter(
+        models.WorkerCalendar.worker_id == worker.id,
+        models.WorkerCalendar.date == calendar_in.date
+    ).first()
+    
+    if existing:
+        existing.is_off = calendar_in.is_off
+        existing.note = calendar_in.note
+        db.commit()
+        db.refresh(existing)
+        return existing
+        
+    new_slot = models.WorkerCalendar(
+        worker_id=worker.id,
+        date=calendar_in.date,
+        is_off=calendar_in.is_off,
+        note=calendar_in.note
+    )
+    db.add(new_slot)
+    db.commit()
+    db.refresh(new_slot)
+    return new_slot
+
+@router.get("/earnings/stats")
+def get_worker_earnings_stats(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_worker)):
+    worker = db.query(models.Worker).filter(models.Worker.user_id == current_user.id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker profile not found")
+        
+    # Get all earnings transactions
+    txs = db.query(models.Transaction).filter(
+        models.Transaction.worker_id == worker.id,
+        models.Transaction.type == "earnings"
+    ).all()
+    
+    now = datetime.utcnow()
+    # Start of today, start of week (Monday), start of month
+    start_of_today = datetime(now.year, now.month, now.day)
+    start_of_week = start_of_today - timedelta(days=now.weekday())
+    start_of_month = datetime(now.year, now.month, 1)
+    
+    today_total = 0.0
+    week_total = 0.0
+    month_total = 0.0
+    
+    chart_data = [] # List of {"label": str, "amount": float} for last 7 days
+    # Let's populate last 7 days chart data
+    last_7_days = []
+    for i in range(6, -1, -1):
+        day_date = start_of_today - timedelta(days=i)
+        last_7_days.append(day_date)
+        chart_data.append({"label": day_date.strftime("%d/%m"), "amount": 0.0})
+        
+    for tx in txs:
+        tx_time = tx.created_at
+        if tx_time >= start_of_today:
+            today_total += tx.amount
+        if tx_time >= start_of_week:
+            week_total += tx.amount
+        if tx_time >= start_of_month:
+            month_total += tx.amount
+            
+        for idx, day_date in enumerate(last_7_days):
+            if tx_time.date() == day_date.date():
+                chart_data[idx]["amount"] += tx.amount
+                
+    return {
+        "today": today_total,
+        "this_week": week_total,
+        "this_month": month_total,
+        "chart_data": chart_data
+    }
+
+@router.get("/wallet/transactions", response_model=List[schemas.TransactionResponse])
+def get_worker_wallet_transactions(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_worker)):
+    worker = db.query(models.Worker).filter(models.Worker.user_id == current_user.id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker profile not found")
+        
+    txs = db.query(models.Transaction).filter(models.Transaction.worker_id == worker.id).order_by(models.Transaction.created_at.desc()).all()
+    return txs
+
+UPLOAD_DIR = "static/uploads"
+
+@router.post("/bookings/{booking_id}/upload-photos")
+def upload_booking_photo(
+    booking_id: int,
+    photo_type: str = Form(...), # "before" or "after"
+    file: UploadFile = File(...),
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_worker)
+):
+    if photo_type not in ["before", "after"]:
+        raise HTTPException(status_code=400, detail="Invalid photo type. Must be 'before' or 'after'")
+        
+    worker = db.query(models.Worker).filter(models.Worker.user_id == current_user.id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker profile not found")
+        
+    booking = db.query(models.Booking).filter(
+        models.Booking.id == booking_id,
+        models.Booking.worker_id == worker.id
+    ).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found or not assigned to you")
+        
+    # Create directory if not exists
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    
+    # Save file
+    file_ext = os.path.splitext(file.filename)[1]
+    filename = f"{booking_id}_{photo_type}_{int(time.time())}{file_ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    relative_path = f"/static/uploads/{filename}"
+    
+    if photo_type == "before":
+        booking.before_image = relative_path
+    else:
+        booking.after_image = relative_path
+        
+    db.commit()
+    db.refresh(booking)
+    
+    return {"image_url": relative_path, "message": "Tải ảnh lên thành công"}
+
+@router.put("/bookings/{booking_id}/state", response_model=schemas.BookingResponse)
+def update_booking_state_alias(
+    booking_id: int,
+    status_update: models.BookingStatusEnum,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(get_current_worker)
+):
+    return update_job_status(booking_id, status_update, db, current_user)

@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:dio/dio.dart';
 import 'services_screen.dart';
 import 'booking_form_screen.dart';
+import 'notification_screen.dart';
 import '../../models/app_models.dart';
 import '../../services/api_service.dart';
 import '../../providers/auth_provider.dart';
@@ -21,18 +22,82 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   List<ServiceCategory> _categories = [];
   List<Service> _popularServices = [];
   List<Service> _allServices = [];
+  List<Service> _favorites = [];
   bool _isLoading = true;
   String? _error;
 
   String _selectedCategoryName = 'Tất cả';
   String _currentLocation = 'Đà Nẵng, Việt Nam';
   bool _isLocating = false;
+  int _unreadNotificationsCount = 0;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _fetchData();
     _loadCurrentLocation();
+    _fetchFavorites();
+    _fetchNotificationsCount();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchFavorites() async {
+    try {
+      final response = await _apiService.client.get('/customer/favorites');
+      if (mounted) {
+        setState(() {
+          _favorites = (response.data as List)
+              .map((i) => Service.fromJson(i))
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching favorites: $e');
+    }
+  }
+
+  Future<void> _fetchNotificationsCount() async {
+    try {
+      final response = await _apiService.client.get('/customer/notifications');
+      final list = response.data as List;
+      final unread = list.where((n) => n['is_read'] == false).length;
+      if (mounted) {
+        setState(() {
+          _unreadNotificationsCount = unread;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching notifications count: $e');
+    }
+  }
+
+  Future<void> _toggleFavorite(Service service) async {
+    final isFav = _favorites.any((s) => s.id == service.id);
+    try {
+      if (isFav) {
+        await _apiService.client.delete('/customer/favorites/${service.id}');
+        setState(() {
+          _favorites.removeWhere((s) => s.id == service.id);
+        });
+      } else {
+        await _apiService.client.post(
+          '/customer/favorites',
+          data: {'service_id': service.id},
+        );
+        setState(() {
+          _favorites.add(service);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error toggling favorite: $e');
+    }
   }
 
   Future<void> _loadCurrentLocation() async {
@@ -43,7 +108,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     });
 
     try {
-      // 1. Kiểm tra dịch vụ định vị (GPS)
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         setState(() {
@@ -53,7 +117,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         return;
       }
 
-      // 2. Kiểm tra và xin quyền vị trí
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -74,13 +137,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         return;
       }
 
-      // 3. Lấy vị trí hiện tại
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.medium,
         timeLimit: const Duration(seconds: 8),
       );
 
-      // 4. Gọi API OpenStreetMap Nominatim để giải mã tọa độ thành địa chỉ
       final dio = Dio();
       dio.options.headers['User-Agent'] = 'SmartServiceApp/1.0';
 
@@ -126,7 +187,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         }
       }
 
-      // Rút ngắn các tiền tố dài dòng
       address = address
           .replaceAll('Thành phố ', 'TP. ')
           .replaceAll('Quận ', 'Q. ');
@@ -142,7 +202,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
       if (mounted) {
         setState(() {
           _isLocating = false;
-          _currentLocation = 'Đà Nẵng, Việt Nam'; // Dự phòng an toàn
+          _currentLocation = 'Đà Nẵng, Việt Nam';
         });
       }
     }
@@ -155,7 +215,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     });
 
     try {
-      // 1. Tải danh mục dịch vụ
       List<ServiceCategory> loadedCategories = [];
       try {
         final catResponse = await _apiService.client.get(
@@ -168,7 +227,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         debugPrint('Error fetching categories: $catErr');
       }
 
-      // 2. Tải danh sách dịch vụ
       final servResponse = await _apiService.client.get('/customer/services');
       final List<Service> loadedServices = (servResponse.data as List)
           .map((i) => Service.fromJson(i))
@@ -194,56 +252,35 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   }
 
   void _filterServices() {
+    List<Service> services = [];
     if (_selectedCategoryName == 'All' || _selectedCategoryName == 'Tất cả') {
-      _popularServices = _allServices.take(5).toList();
+      services = _allServices;
     } else {
-      final nameLower = _selectedCategoryName.toLowerCase();
-      _popularServices = _allServices.where((serv) {
-        final servName = serv.name.toLowerCase();
-        final servDesc = (serv.description ?? '').toLowerCase();
-
-        if (nameLower.contains('cleaning') ||
-            nameLower.contains('dọn') ||
-            nameLower.contains('vệ sinh')) {
-          return servName.contains('dọn') ||
-              servName.contains('vệ sinh') ||
-              servName.contains('clean');
-        }
-        if (nameLower.contains('plumb') ||
-            nameLower.contains('nước') ||
-            nameLower.contains('ống')) {
-          return servName.contains('nước') ||
-              servName.contains('ống') ||
-              servName.contains('plumb');
-        }
-        if (nameLower.contains('electric') || nameLower.contains('điện')) {
-          return servName.contains('điện') ||
-              servName.contains('cáp') ||
-              servName.contains('electric');
-        }
-        if (nameLower.contains('it') ||
-            nameLower.contains('solutions') ||
-            nameLower.contains('máy tính') ||
-            nameLower.contains('giải pháp')) {
-          return servName.contains('it') ||
-              servName.contains('máy tính') ||
-              servName.contains('pc');
-        }
-        return servName.contains(nameLower) || servDesc.contains(nameLower);
-      }).toList();
-
-      if (_popularServices.isEmpty) {
-        _popularServices = _allServices.where((serv) {
-          final servName = serv.name.toLowerCase();
-          final servDesc = (serv.description ?? '').toLowerCase();
-          return servName.contains(nameLower) || servDesc.contains(nameLower);
-        }).toList();
-      }
-
-      if (_popularServices.isEmpty) {
-        _popularServices = _allServices.take(3).toList();
+      final category = _categories.firstWhere(
+        (c) => c.name == _selectedCategoryName,
+        orElse: () => ServiceCategory(id: -1, name: ''),
+      );
+      if (category.id != -1) {
+        services = _allServices
+            .where((serv) => serv.categoryId == category.id)
+            .toList();
+      } else {
+        services = [];
       }
     }
+
+    if (_searchQuery.isNotEmpty) {
+      final queryLower = _searchQuery.toLowerCase();
+      services = services
+          .where(
+            (serv) =>
+                serv.name.toLowerCase().contains(queryLower) ||
+                (serv.description ?? '').toLowerCase().contains(queryLower),
+          )
+          .toList();
+    }
+
+    _popularServices = services;
   }
 
   List<String> get _displayCategoryNames {
@@ -256,7 +293,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     return list;
   }
 
-  // Tối ưu hóa Mapping ảnh sử dụng Map & vòng lặp thay vì chuỗi if-else lặp lại
   String _getServiceImageUrl(String name) {
     final nameLower = name.toLowerCase();
 
@@ -294,7 +330,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         ),
         child: SafeArea(
           child: RefreshIndicator(
-            onRefresh: _fetchData,
+            onRefresh: () async {
+              await _fetchData();
+              await _fetchFavorites();
+              await _fetchNotificationsCount();
+            },
             color: theme.primaryColor,
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -315,7 +355,34 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       const SizedBox(height: 28),
                       _buildCategoriesList(),
                       const SizedBox(height: 28),
-                      _buildHeroCard(theme), // Nhận diện thiết kế 3D mới
+                      _buildHeroCard(theme),
+                      if (_favorites.isNotEmpty) ...[
+                        const SizedBox(height: 28),
+                        Text(
+                          'Dịch vụ yêu thích của bạn',
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1E293B),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: 110,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: _favorites.length,
+                            itemBuilder: (context, index) {
+                              final service = _favorites[index];
+                              return _buildFavoriteHorizontalCard(
+                                service,
+                                theme,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 32),
                       Text(
                         'Dịch vụ phổ biến',
@@ -415,52 +482,91 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             ],
           ),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
+        Row(
           children: [
             GestureDetector(
-              onTap: _loadCurrentLocation,
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                  border: Border.all(color: const Color(0xFFF1F0EA)),
-                ),
-                child: _isLocating
-                    ? const Padding(
-                        padding: EdgeInsets.all(12.0),
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Color(0xFF7555CF),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NotificationScreen()),
+                ).then((_) => _fetchNotificationsCount());
+              },
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(
+                    Icons.notifications_none_outlined,
+                    color: Color(0xFF1E293B),
+                    size: 26,
+                  ),
+                  if (_unreadNotificationsCount > 0)
+                    Positioned(
+                      right: -10,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
                         ),
-                      )
-                    : const Icon(
-                        Icons.location_on_outlined,
-                        color: Color(0xFF1E293B),
-                        size: 22,
+                        child: Text(
+                          '$_unreadNotificationsCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
+                    ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              _currentLocation,
-              style: GoogleFonts.outfit(
-                fontSize: 11,
-                color: const Color(0xFF64748B),
-                fontWeight: FontWeight.w600,
+            const SizedBox(width: 16),
+            GestureDetector(
+              onTap: _loadCurrentLocation,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_isLocating)
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF7555CF),
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Icons.location_on,
+                          color: Color(0xFF7555CF),
+                          size: 20,
+                        ),
+                      const SizedBox(width: 10),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 100),
+                    child: Text(
+                      _currentLocation,
+                      textAlign: TextAlign.right,
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -509,12 +615,19 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
+              controller: _searchController,
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val;
+                  _filterServices();
+                });
+              },
               style: GoogleFonts.outfit(
                 fontSize: 16,
                 color: const Color(0xFF1E293B),
               ),
               decoration: InputDecoration(
-                hintText: 'Tìm kiếm',
+                hintText: 'Tìm kiếm dịch vụ...',
                 hintStyle: GoogleFonts.outfit(
                   color: const Color(0xFF8E8E8E),
                   fontSize: 16,
@@ -574,14 +687,11 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
-  // Đã tối ưu hóa giúp ảnh cô lao công nhô cao hẳn lên trên Card (Hiệu ứng 3D Pop-out)
   Widget _buildHeroCard(ThemeData theme) {
     return Container(
       width: double.infinity,
       height: 330,
-      margin: const EdgeInsets.only(
-        top: 40,
-      ), // Tạo khoảng trống phía trên cho đầu ảnh nhô lên
+      margin: const EdgeInsets.only(top: 40),
       decoration: BoxDecoration(
         color: const Color(0xFFD4EFE8),
         borderRadius: BorderRadius.circular(32),
@@ -594,9 +704,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         ],
       ),
       child: Stack(
-        clipBehavior: Clip.none, // Cho phép ảnh nhô tràn viền Container
+        clipBehavior: Clip.none,
         children: [
-          // Ảnh người được cấu hình đẩy lồi lên trên qua thuộc tính top âm
           Positioned(
             right: 0,
             bottom: 0,
@@ -607,8 +716,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               width: 220,
             ),
           ),
-
-          // Lớp phủ Gradient mờ mịn màng
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
@@ -626,7 +733,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ),
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -714,8 +820,8 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                           ? _allServices.first
                           : Service(
                               id: 1,
-                              name: 'Quick Cleaning',
-                              price: 25.0,
+                              name: 'Vệ sinh căn hộ chung cư',
+                              price: 50000.0,
                               categoryId: 1,
                             ),
                     );
@@ -750,7 +856,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
-                            Icons.shopping_cart_outlined,
+                            Icons.bolt_outlined,
                             size: 16,
                             color: Colors.white,
                           ),
@@ -759,7 +865,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                         Padding(
                           padding: const EdgeInsets.only(right: 18),
                           child: Text(
-                            'Đặt ngay',
+                            'Đặt nhanh',
                             style: GoogleFonts.outfit(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -791,8 +897,87 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
+  Widget _buildFavoriteHorizontalCard(Service service, ThemeData theme) {
+    final imageUrl = _getServiceImageUrl(service.name);
+    return Container(
+      width: 200,
+      margin: const EdgeInsets.only(right: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.015),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFF1F0EA)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BookingFormScreen(service: service),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    imageUrl,
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        service.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${service.price.toStringAsFixed(0)}đ/giờ',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: theme.primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildServiceCard(Service service, ThemeData theme) {
     final imageUrl = _getServiceImageUrl(service.name);
+    final isFav = _favorites.any((s) => s.id == service.id);
 
     return InkWell(
       onTap: () {
@@ -817,48 +1002,74 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           ],
           border: Border.all(color: const Color(0xFFF1F0EA)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                    child: Image.asset(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                    ),
+                  ),
                 ),
-                child: Image.asset(
-                  imageUrl, // Load trực tiếp qua cục bộ chính xác
-                  fit: BoxFit.cover,
-                  width: double.infinity,
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        service.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${service.price.toStringAsFixed(0)}đ/giờ',
+                        style: GoogleFonts.outfit(
+                          color: theme.primaryColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    service.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
-                    ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: GestureDetector(
+                onTap: () => _toggleFavorite(service),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${service.price.toStringAsFixed(0)}đ/giờ',
-                    style: GoogleFonts.outfit(
-                      color: theme.primaryColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
+                  child: Icon(
+                    isFav ? Icons.favorite : Icons.favorite_border,
+                    color: isFav ? Colors.red : Colors.grey,
+                    size: 16,
                   ),
-                ],
+                ),
               ),
             ),
           ],

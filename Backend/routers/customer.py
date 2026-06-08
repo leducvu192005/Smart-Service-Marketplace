@@ -122,6 +122,137 @@ def create_review(review: schemas.ReviewCreate,
     return new_review
 
 
+# ==========================================
+# EXTRA CUSTOMER / CHAT / NOTIFICATION API
+# ==========================================
+
+@router.get("/favorites", response_model=List[schemas.ServiceResponse])
+def get_favorites(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_customer)):
+    favorites = db.query(models.Favorite).filter(models.Favorite.customer_id == current_user.id).all()
+    service_ids = [fav.service_id for fav in favorites]
+    services = db.query(models.Service).filter(models.Service.id.in_(service_ids)).all()
+    return services
+
+@router.post("/favorites", response_model=schemas.FavoriteResponse)
+def add_favorite(fav_in: schemas.FavoriteCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_customer)):
+    service = db.query(models.Service).filter(models.Service.id == fav_in.service_id).first()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    existing = db.query(models.Favorite).filter(
+        models.Favorite.customer_id == current_user.id,
+        models.Favorite.service_id == fav_in.service_id
+    ).first()
+    if existing:
+        return existing
+    new_fav = models.Favorite(customer_id=current_user.id, service_id=fav_in.service_id)
+    db.add(new_fav)
+    db.commit()
+    db.refresh(new_fav)
+    return new_fav
+
+@router.delete("/favorites/{service_id}")
+def remove_favorite(service_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_customer)):
+    existing = db.query(models.Favorite).filter(
+        models.Favorite.customer_id == current_user.id,
+        models.Favorite.service_id == service_id
+    ).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Favorite not found")
+    db.delete(existing)
+    db.commit()
+    return {"message": "Success"}
+
+@router.get("/addresses", response_model=List[schemas.SavedAddressResponse])
+def get_saved_addresses(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_customer)):
+    addresses = db.query(models.SavedAddress).filter(models.SavedAddress.customer_id == current_user.id).all()
+    return addresses
+
+@router.post("/addresses", response_model=schemas.SavedAddressResponse)
+def add_saved_address(addr_in: schemas.SavedAddressCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_customer)):
+    new_addr = models.SavedAddress(
+        customer_id=current_user.id,
+        label=addr_in.label,
+        address_text=addr_in.address_text,
+        latitude=addr_in.latitude,
+        longitude=addr_in.longitude
+    )
+    db.add(new_addr)
+    db.commit()
+    db.refresh(new_addr)
+    return new_addr
+
+@router.get("/bookings/{booking_id}/chat", response_model=List[schemas.ChatMessageResponse])
+def get_chat_messages(booking_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth_utils.get_current_user)):
+    booking = db.query(models.Booking).filter(models.Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    is_authorized = (booking.customer_id == current_user.id or 
+                     (booking.worker_id is not None and booking.worker.user_id == current_user.id) or
+                     current_user.role in [models.RoleEnum.SUPPORT, models.RoleEnum.ADMIN])
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="Not authorized to view this chat")
+        
+    messages = db.query(models.ChatMessage).filter(models.ChatMessage.booking_id == booking_id).order_by(models.ChatMessage.created_at.asc()).all()
+    return messages
+
+@router.post("/bookings/{booking_id}/chat", response_model=schemas.ChatMessageResponse)
+def send_chat_message(booking_id: int, msg_in: schemas.ChatMessageCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth_utils.get_current_user)):
+    booking = db.query(models.Booking).filter(models.Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    is_authorized = (booking.customer_id == current_user.id or 
+                     (booking.worker_id is not None and booking.worker.user_id == current_user.id) or
+                     current_user.role in [models.RoleEnum.SUPPORT, models.RoleEnum.ADMIN])
+    if not is_authorized:
+        raise HTTPException(status_code=403, detail="Not authorized to chat in this booking")
+        
+    new_msg = models.ChatMessage(
+        booking_id=booking_id,
+        sender_id=current_user.id,
+        message_text=msg_in.message_text
+    )
+    db.add(new_msg)
+    
+    recipient_id = None
+    if current_user.id == booking.customer_id:
+        if booking.worker_id:
+            recipient_id = booking.worker.user_id
+    else:
+        recipient_id = booking.customer_id
+        
+    if recipient_id:
+        notif = models.UserNotification(
+            user_id=recipient_id,
+            title=f"Tin nhắn mới từ {current_user.full_name}",
+            message=msg_in.message_text[:100]
+        )
+        db.add(notif)
+        
+    db.commit()
+    db.refresh(new_msg)
+    return new_msg
+
+@router.get("/notifications", response_model=List[schemas.UserNotificationResponse])
+def get_user_notifications(db: Session = Depends(database.get_db), current_user: models.User = Depends(auth_utils.get_current_user)):
+    notifications = db.query(models.UserNotification).filter(models.UserNotification.user_id == current_user.id).order_by(models.UserNotification.created_at.desc()).all()
+    return notifications
+
+@router.put("/notifications/{notification_id}/read", response_model=schemas.UserNotificationResponse)
+def mark_notification_read(notification_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth_utils.get_current_user)):
+    notif = db.query(models.UserNotification).filter(
+        models.UserNotification.id == notification_id,
+        models.UserNotification.user_id == current_user.id
+    ).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    notif.is_read = True
+    db.commit()
+    db.refresh(notif)
+    return notif
+
+
 @router.post("/tickets", response_model=schemas.TicketResponse)
 def create_ticket(ticket: schemas.TicketCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_customer)):
     new_ticket = models.Ticket(

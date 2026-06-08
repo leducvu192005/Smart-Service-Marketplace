@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home.dart';
-import 'jobs_screen.dart';
-import 'worker_my_jobs_screen.dart';
+import 'calendar_screen.dart';
+import '../customer/chat_list_screen.dart';
 import 'profile_screen.dart';
 
 class WorkerMainScreen extends StatefulWidget {
@@ -15,8 +15,8 @@ class _WorkerMainScreenState extends State<WorkerMainScreen> {
   int _currentIndex = 0;
   final List<Widget> _screens = [
     const WorkerHomeScreen(),
-    const WorkerJobsScreen(),
-    const WorkerMyJobsScreen(),
+    const WorkerCalendarScreen(),
+    const ChatListScreen(isWorker: true),
     const WorkerProfileScreen(),
   ];
 
@@ -31,8 +31,7 @@ class _WorkerMainScreenState extends State<WorkerMainScreen> {
         unselectedItemColor: Colors.grey,
         backgroundColor: Colors.white,
         elevation: 10,
-        type:
-            BottomNavigationBarType.fixed, // Ensure it looks good with 4 items
+        type: BottomNavigationBarType.fixed, // Ensure it looks good with 4 items
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.dashboard_outlined),
@@ -40,14 +39,14 @@ class _WorkerMainScreenState extends State<WorkerMainScreen> {
             label: 'Tổng quan',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            activeIcon: Icon(Icons.manage_search),
-            label: 'Tìm việc',
+            icon: Icon(Icons.calendar_today_outlined),
+            activeIcon: Icon(Icons.calendar_today),
+            label: 'Lịch tuần',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.work_outline),
-            activeIcon: Icon(Icons.work),
-            label: 'Việc của tôi',
+            icon: Icon(Icons.chat_bubble_outline),
+            activeIcon: Icon(Icons.chat_bubble),
+            label: 'Trò chuyện',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/app_models.dart';
 import '../../services/api_service.dart';
+import 'chat_detail_screen.dart';
 
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
@@ -75,6 +76,18 @@ class _BookingsScreenState extends State<BookingsScreen> {
           'color': Colors.blue,
           'bg': Colors.blue.withOpacity(0.08),
         };
+      case 'on_the_way':
+        return {
+          'text': 'Đang di chuyển',
+          'color': const Color(0xFF0284C7),
+          'bg': const Color(0xFF0284C7).withOpacity(0.08),
+        };
+      case 'arrived':
+        return {
+          'text': 'Đã đến nơi',
+          'color': const Color(0xFFD97706),
+          'bg': const Color(0xFFD97706).withOpacity(0.08),
+        };
       case 'in_progress':
         return {
           'text': 'Đang thực hiện',
@@ -86,6 +99,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
           'text': 'Đã hoàn thành',
           'color': Colors.green,
           'bg': Colors.green.withOpacity(0.08),
+        };
+      case 'reviewed':
+        return {
+          'text': 'Đã đánh giá',
+          'color': const Color(0xFF059669),
+          'bg': const Color(0xFF059669).withOpacity(0.08),
         };
       case 'cancelled':
         return {
@@ -149,7 +168,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   // Check if status is worker-active
   bool _showWorkerInfo(String status) {
-    return status == 'accepted' || status == 'in_progress' || status == 'done';
+    return status == 'accepted' ||
+        status == 'on_the_way' ||
+        status == 'arrived' ||
+        status == 'in_progress' ||
+        status == 'done' ||
+        status == 'reviewed';
   }
 
   // Open the dialog for review submissions
@@ -320,6 +344,132 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
+  Widget _buildTimelineStepper(String status) {
+    if (status == 'cancelled') {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.cancel, color: Colors.red),
+            const SizedBox(width: 12),
+            Text(
+              'Đơn hàng này đã bị hủy',
+              style: GoogleFonts.outfit(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final steps = [
+      {'key': 'pending', 'label': 'Chờ nhận'},
+      {'key': 'accepted', 'label': 'Đã nhận'},
+      {'key': 'on_the_way', 'label': 'Đang đi'},
+      {'key': 'arrived', 'label': 'Đến nơi'},
+      {'key': 'in_progress', 'label': 'Đang làm'},
+      {'key': 'done', 'label': 'Xong'},
+    ];
+
+    int currentIndex = 0;
+    if (status == 'accepted') {
+      currentIndex = 1;
+    } else if (status == 'on_the_way') {
+      currentIndex = 2;
+    } else if (status == 'arrived') {
+      currentIndex = 3;
+    } else if (status == 'in_progress') {
+      currentIndex = 4;
+    } else if (status == 'done' || status == 'reviewed') {
+      currentIndex = 5;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: List.generate(steps.length, (index) {
+          final step = steps[index];
+          final bool isPassed = index <= currentIndex;
+          final bool isCurrent = index == currentIndex;
+
+          return Expanded(
+            child: Row(
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isPassed
+                            ? const Color(0xFF6F61E8)
+                            : Colors.grey[200],
+                        border: isCurrent
+                            ? Border.all(
+                                color: const Color(0xFF6F61E8).withOpacity(0.3),
+                                width: 4,
+                              )
+                            : null,
+                      ),
+                      child: Center(
+                        child: isPassed && !isCurrent
+                            ? const Icon(
+                                Icons.check,
+                                size: 12,
+                                color: Colors.white,
+                              )
+                            : Text(
+                                '${index + 1}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: isPassed ? Colors.white : Colors.grey,
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      step['label']!,
+                      style: GoogleFonts.outfit(
+                        fontSize: 9,
+                        fontWeight: isCurrent
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: isPassed ? const Color(0xFF1E293B) : Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+                if (index < steps.length - 1)
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      color: index < currentIndex
+                          ? const Color(0xFF6F61E8)
+                          : Colors.grey[200],
+                      margin: const EdgeInsets.only(bottom: 12),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
   // Opens a gorgeous, highly styled dialog showing details of the selected service booking
   void _showBookingDetailsBottomSheet(Booking booking) {
     final statusConfig = _getStatusConfig(booking.status, context);
@@ -402,6 +552,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               const SizedBox(height: 16),
               const Divider(color: Color(0xFFECEFF1)),
               const SizedBox(height: 16),
+              _buildTimelineStepper(booking.status),
 
               // Detail fields list
               _buildDetailRow(
@@ -695,10 +846,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
                           const SizedBox(width: 8),
                           InkWell(
                             onTap: () {
-                              ScaffoldMessenger.of(sheetContext).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Mở tin nhắn chat trực tiếp với thợ $name...',
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ChatDetailScreen(
+                                    booking: booking,
+                                    isWorker: false,
+                                    partnerName: name,
                                   ),
                                 ),
                               );
@@ -762,30 +916,142 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   ),
                 ),
               ],
+              if (booking.beforeImage != null ||
+                  booking.afterImage != null) ...[
+                const SizedBox(height: 16),
+                const Divider(color: Color(0xFFECEFF1)),
+                const SizedBox(height: 16),
+                Text(
+                  'Hình ảnh minh chứng công việc',
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    if (booking.beforeImage != null)
+                      Expanded(
+                        child: Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                ApiConfig.baseUrl + booking.beforeImage!,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  height: 120,
+                                  color: Colors.grey.shade200,
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Trước khi làm',
+                              style: GoogleFonts.outfit(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (booking.beforeImage != null &&
+                        booking.afterImage != null)
+                      const SizedBox(width: 12),
+                    if (booking.afterImage != null)
+                      Expanded(
+                        child: Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                ApiConfig.baseUrl + booking.afterImage!,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  height: 120,
+                                  color: Colors.grey.shade200,
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Sau khi làm',
+                              style: GoogleFonts.outfit(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ],
 
               const SizedBox(height: 24),
 
-              // Bottom sheet confirm / close button
-              SizedBox(
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(sheetContext),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6F61E8),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+              // Bottom sheet action buttons (Khiếu nại & Đóng)
+              Row(
+                children: [
+                  if (booking.status != 'pending') ...[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.pop(sheetContext); // Close sheet
+                          _showComplaintDialog(booking.id);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red, width: 1.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: Text(
+                          'Khiếu nại',
+                          style: GoogleFonts.outfit(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Đóng',
-                    style: GoogleFonts.outfit(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6F61E8),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        'Đóng',
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
               const SizedBox(height: 12),
             ],
@@ -1033,112 +1299,203 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.grey.shade100,
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.015),
+                                blurRadius: 15,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: _getStatusColor(
-                                          booking.status,
-                                        ).withOpacity(0.1),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        Icons.handyman,
-                                        color: _getStatusColor(booking.status),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Booking #${booking.id} - Service ${booking.serviceId}',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            booking.scheduledTime.split('T')[0],
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.grey,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Chip(
-                                      label: Text(
-                                        booking.status.toUpperCase(),
-                                        style: const TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      backgroundColor: _getStatusColor(
-                                        booking.status,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.location_on,
-                                      size: 16,
-                                      color: Colors.grey,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        booking.address,
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                if (booking.status == 'done') ...[
-                                  const SizedBox(height: 16),
-                                  const Divider(),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      onPressed: () =>
-                                          _showReviewDialog(booking.id),
-                                      icon: const Icon(
-                                        Icons.star,
-                                        color: Colors.amber,
-                                      ),
-                                      label: const Text('Đánh giá thợ'),
-                                      style: OutlinedButton.styleFrom(
-                                        side: const BorderSide(
-                                          color: Colors.amber,
-                                        ),
-                                        shape: RoundedRectangleBorder(
+                          child: InkWell(
+                            onTap: () =>
+                                _showBookingDetailsBottomSheet(booking),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Card Header
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: statusConfig['bg'],
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
                                         ),
+                                        child: Icon(
+                                          Icons.build_circle_outlined,
+                                          color: statusConfig['color'],
+                                          size: 20,
+                                        ),
                                       ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Mã đơn: #${booking.id}',
+                                              style: GoogleFonts.outfit(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 15,
+                                                color: const Color(0xFF1E1E1E),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              associatedService?.name ??
+                                                  'ID Dịch vụ: ${booking.serviceId}',
+                                              style: GoogleFonts.outfit(
+                                                color: Colors.grey.shade600,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: statusConfig['bg'],
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          statusConfig['text'],
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 11,
+                                            color: statusConfig['color'],
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 12),
+                                    child: Divider(
+                                      height: 1,
+                                      color: Color(0xFFF5F5F5),
                                     ),
                                   ),
+
+                                  // Timestamps & Locations
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.access_time_rounded,
+                                        size: 16,
+                                        color: Colors.grey,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '$displayTime - $displayDate',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 13,
+                                          color: Colors.grey.shade700,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      if (displayPrice.isNotEmpty)
+                                        Text(
+                                          displayPrice,
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 15,
+                                            color: const Color(0xFF6F61E8),
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 2),
+                                        child: Icon(
+                                          Icons.location_on_rounded,
+                                          size: 16,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          booking.address,
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 13,
+                                            color: Colors.grey.shade700,
+                                            height: 1.4,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  // Action Buttons
+                                  if (booking.status == 'done') ...[
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            onPressed: () =>
+                                                _showReviewDialog(booking.id),
+                                            icon: const Icon(
+                                              Icons.star_rounded,
+                                              color: Colors.amber,
+                                              size: 18,
+                                            ),
+                                            label: Text(
+                                              'Đánh giá thợ',
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor:
+                                                  Colors.amber.shade800,
+                                              side: BorderSide(
+                                                color: Colors.amber.shade400,
+                                                width: 1.2,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
                         );
