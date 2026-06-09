@@ -167,7 +167,11 @@ class Voucher(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String(50), unique=True, index=True, nullable=False)
-    discount_amount = Column(Float, nullable=False)
+    discount_amount = Column(Float, nullable=False)          # Backward compat
+    discount_value = Column(Float, nullable=True)            # Frontend field
+    discount_type = Column(String(20), default="fixed")      # percentage | fixed
+    max_uses = Column(Integer, nullable=True)                # Số lần dùng tối đa
+    used_count = Column(Integer, default=0)                  # Đã dùng bao nhiêu lần
     is_active = Column(Boolean, default=True)
     expiry_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

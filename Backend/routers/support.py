@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
+from pydantic import BaseModel
 
 import database
 import models
@@ -16,12 +17,56 @@ def get_current_support(current_user: models.User = Depends(auth_utils.get_curre
         raise HTTPException(status_code=403, detail="Not authorized as support")
     return current_user
 
-@router.get("/bookings", response_model=List[schemas.BookingResponse])
-def get_all_bookings(status: models.BookingStatusEnum = None, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
+@router.get("/bookings")
+def get_all_bookings(status: str = None, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
+    """Trả về danh sách đơn hàng kèm thông tin khách hàng và thợ"""
     query = db.query(models.Booking)
     if status is not None:
         query = query.filter(models.Booking.status == status)
-    return query.all()
+    bookings = query.all()
+    
+    result = []
+    for b in bookings:
+        # Tên khách hàng
+        customer_name = None
+        customer_username = None
+        if b.customer:
+            customer_name = b.customer.full_name
+            customer_username = b.customer.username
+        
+        # Tên thợ và thông tin
+        worker_name = None
+        if b.worker and b.worker.user:
+            worker_name = b.worker.user.full_name
+        elif b.worker_id:
+            worker_name = f"Thợ #{b.worker_id}"
+        
+        # Tên dịch vụ và giá
+        service_name = b.service.name if b.service else None
+        price = float(b.service.price) if b.service and b.service.price is not None else 0.0
+        
+        result.append({
+            "booking_id": b.id,
+            "id": b.id,
+            "customer_id": b.customer_id,
+            "customer_name": customer_name,
+            "customer_username": customer_username,
+            "worker_id": b.worker_id,
+            "worker_name": worker_name,
+            "service_id": b.service_id,
+            "service_name": service_name,
+            "price": price,
+            "scheduled_time": b.scheduled_time.isoformat() if b.scheduled_time else None,
+            "address": b.address,
+            "note": b.note,
+            "status": b.status.value if hasattr(b.status, 'value') else b.status,
+            "before_image": b.before_image,
+            "after_image": b.after_image,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+            "updated_at": b.updated_at.isoformat() if b.updated_at else None,
+        })
+    
+    return result
 
 @router.post("/bookings/{booking_id}/cancel", response_model=schemas.BookingResponse)
 def force_cancel_booking(booking_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
@@ -51,8 +96,6 @@ def reassign_worker(booking_id: int, new_worker_id: int, db: Session = Depends(d
 
 
 # --- Support Management APIs ---
-
-from pydantic import BaseModel
 class RescheduleRequest(BaseModel):
     scheduled_time: datetime
 
@@ -252,5 +295,151 @@ def lock_worker(worker_id: int, db: Session = Depends(database.get_db), current_
 @router.get("/workers", response_model=List[schemas.WorkerResponse])
 def get_all_workers(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
     return db.query(models.Worker).filter(models.Worker.status == "approved").all()
+
+
+# --- Quản lý Chat và Hỗ trợ Khách hàng ---
+
+@router.get("/bookings/{booking_id}/chat", response_model=List[schemas.ChatMessageResponse])
+def get_booking_chat(booking_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
+    """Lấy lịch sử trò chuyện của một đơn hàng"""
+    booking = db.query(models.Booking).filter(models.Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    messages = db.query(models.ChatMessage).filter(
+        models.ChatMessage.booking_id == booking_id
+    ).order_by(models.ChatMessage.created_at.asc()).all()
+    return messages
+
+
+@router.post("/bookings/{booking_id}/chat", response_model=schemas.ChatMessageResponse)
+def send_support_message(booking_id: int, payload: schemas.ChatMessageCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
+    """Support gửi tin nhắn đến khách hàng/thợ về một đơn hàng"""
+    booking = db.query(models.Booking).filter(models.Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    message = models.ChatMessage(
+        booking_id=booking_id,
+        sender_id=current_user.id,
+        message_text=payload.message_text
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    return message
+
+
+# --- Quản lý Giao dịch và Ví ---
+
+@router.get("/workers/{worker_id}/transactions", response_model=List[schemas.TransactionResponse])
+def get_worker_transactions(worker_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
+    """Xem lịch sử giao dịch của một thợ"""
+    worker = db.query(models.Worker).filter(models.Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    
+    transactions = db.query(models.Transaction).filter(
+        models.Transaction.worker_id == worker_id
+    ).order_by(models.Transaction.created_at.desc()).all()
+    return transactions
+
+
+@router.get("/workers/{worker_id}/wallet")
+def get_worker_wallet(worker_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
+    """Xem số dư ví của một thợ"""
+    worker = db.query(models.Worker).filter(models.Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    
+    return {
+        "worker_id": worker.id,
+        "balance": worker.wallet_balance or 0.0,
+        "full_name": worker.full_name,
+        "status": worker.status
+    }
+
+
+# --- Quản lý Hỗ trợ cho Khách hàng & Thợ ---
+
+@router.post("/tickets/{ticket_id}/comment")
+def add_ticket_comment(ticket_id: int, payload: BaseModel, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
+    """Thêm bình luận admin vào ticket"""
+    from pydantic import Field
+    
+    class CommentPayload(BaseModel):
+        comment: str
+    
+    ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    comment_payload = payload if isinstance(payload, dict) else {'comment': str(payload)}
+    ticket.admin_comment = comment_payload.get('comment', '')
+    ticket.updated_at = datetime.utcnow()
+    
+    log = models.SupportActivityLog(
+        support_id=current_user.id,
+        action="add_ticket_comment",
+        details=f"Added comment to ticket {ticket_id}"
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(ticket)
+    
+    return {"message": "Comment added successfully", "ticket": ticket}
+
+
+@router.get("/support-stats")
+def get_support_stats(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
+    """Lấy thống kê của team support"""
+    total_tickets = db.query(models.Ticket).count()
+    pending_tickets = db.query(models.Ticket).filter(models.Ticket.status == "pending").count()
+    in_progress_tickets = db.query(models.Ticket).filter(models.Ticket.status == "in_progress").count()
+    
+    total_bookings = db.query(models.Booking).count()
+    pending_bookings = db.query(models.Booking).filter(models.Booking.status.in_([
+        models.BookingStatusEnum.PENDING_PAYMENT,
+        models.BookingStatusEnum.PENDING
+    ])).count()
+    
+    total_workers = db.query(models.Worker).count()
+    pending_workers = db.query(models.Worker).filter(models.Worker.status == "pending").count()
+    
+    return {
+        "total_tickets": total_tickets,
+        "pending_tickets": pending_tickets,
+        "in_progress_tickets": in_progress_tickets,
+        "total_bookings": total_bookings,
+        "pending_bookings": pending_bookings,
+        "total_workers": total_workers,
+        "pending_workers": pending_workers
+    }
+
+
+@router.post("/bookings/{booking_id}/unlock-worker")
+def unlock_worker_for_booking(booking_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
+    """Mở khóa thợ bị khóa để nhận công việc mới"""
+    booking = db.query(models.Booking).filter(models.Booking.id == booking_id).first()
+    if not booking or not booking.worker_id:
+        raise HTTPException(status_code=404, detail="Booking or worker not found")
+    
+    worker = db.query(models.Worker).filter(models.Worker.id == booking.worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    
+    worker.status = "approved"
+    
+    log = models.SupportActivityLog(
+        support_id=current_user.id,
+        action="unlock_worker",
+        details=f"Unlocked worker ID {worker.id} for booking {booking_id}"
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(worker)
+    
+    return {"message": "Worker unlocked successfully", "worker": worker}
+
 
 

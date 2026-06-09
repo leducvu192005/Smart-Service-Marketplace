@@ -462,13 +462,19 @@ class _WithdrawalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPending = w['status'] == 'pending';
+    final workerName = w['worker_name'] as String? ?? 'Thợ #${w['worker_id']}';
+    final workerPhone = w['worker_phone'] as String? ?? '—';
+    final walletBalance = w['worker_wallet'];
+    final walletStr = walletBalance != null
+        ? '${(walletBalance as num).toStringAsFixed(0)} đ'
+        : null;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: isPending ? Colors.orange.withOpacity(0.3) : const Color(0xFFE2E8F0)),
       ),
       child: Row(
         children: [
@@ -492,61 +498,74 @@ class _WithdrawalCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Yêu cầu rút tiền #${w['id']}',
+                  workerName,
                   style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
                     color: const Color(0xFF1E293B),
                   ),
                 ),
+                const SizedBox(height: 2),
+                Row(children: [
+                  const Icon(Icons.phone_rounded, size: 11, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 4),
+                  Text(workerPhone, style: GoogleFonts.outfit(fontSize: 11, color: const Color(0xFF64748B))),
+                  if (walletStr != null) ...[
+                    const SizedBox(width: 10),
+                    const Icon(Icons.account_balance_wallet_rounded, size: 11, color: Color(0xFF94A3B8)),
+                    const SizedBox(width: 4),
+                    Text('Số dư ví: $walletStr', style: GoogleFonts.outfit(fontSize: 11, color: const Color(0xFF059669))),
+                  ],
+                ]),
                 Text(
-                  'Thợ ID: ${w['worker_id']}',
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
-                    color: const Color(0xFF64748B),
-                  ),
+                  'Yêu cầu #${w['id']}',
+                  style: GoogleFonts.outfit(fontSize: 11, color: const Color(0xFF94A3B8)),
                 ),
               ],
             ),
           ),
-          Text(
-            '\$${w['amount']}',
-            style: GoogleFonts.outfit(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF10B981),
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${(w['amount'] as num?)?.toStringAsFixed(0) ?? '0'} đ',
+                style: GoogleFonts.outfit(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF10B981),
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (isPending) Row(
+                children: [
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: Size.zero,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => onProcess(w['id'], false),
+                    child: Text('Từ chối', style: GoogleFonts.outfit(fontSize: 11)),
+                  ),
+                  const SizedBox(width: 6),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: Size.zero,
+                      elevation: 0,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => onProcess(w['id'], true),
+                    child: Text('Duyệt Chi', style: GoogleFonts.outfit(fontSize: 11)),
+                  ),
+                ],
+              ) else StatusBadge(status: w['status']),
+            ],
           ),
-          const SizedBox(width: 16),
-          if (isPending) ...[
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-              ),
-              onPressed: () => onProcess(w['id'], false),
-              child: Text('Từ chối', style: GoogleFonts.outfit(fontSize: 12)),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                elevation: 0,
-              ),
-              onPressed: () => onProcess(w['id'], true),
-              child: Text('Duyệt Chi', style: GoogleFonts.outfit(fontSize: 12)),
-            ),
-          ] else
-            StatusBadge(status: w['status']),
         ],
       ),
     );
@@ -602,13 +621,16 @@ class _RefundCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPending = r['status'] == 'pending';
+    final customerName = r['customer_name'] as String? ?? 'Khách hàng';
+    final workerName = r['worker_name'] as String? ?? '—';
+    final serviceName = r['service_name'] as String? ?? 'Dịch vụ';
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: isPending ? Colors.red.withOpacity(0.3) : const Color(0xFFE2E8F0)),
       ),
       child: Row(
         children: [
@@ -632,61 +654,72 @@ class _RefundCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Hoàn tiền Đơn #${r['booking_id']}',
+                  customerName,
                   style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
                     color: const Color(0xFF1E293B),
                   ),
                 ),
+                const SizedBox(height: 2),
+                Row(children: [
+                  const Icon(Icons.room_service_rounded, size: 11, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 4),
+                  Text(serviceName, style: GoogleFonts.outfit(fontSize: 11, color: const Color(0xFF64748B))),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.construction_rounded, size: 11, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 4),
+                  Text(workerName, style: GoogleFonts.outfit(fontSize: 11, color: const Color(0xFF64748B))),
+                ]),
                 Text(
-                  'Lý do: ${r['reason'] ?? 'Không có'}',
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
-                    color: const Color(0xFF64748B),
-                  ),
+                  'Lý do: ${r['reason'] ?? 'Không có'}  •  Đơn #${r['booking_id']}',
+                  style: GoogleFonts.outfit(fontSize: 11, color: const Color(0xFF94A3B8)),
                 ),
               ],
             ),
           ),
-          Text(
-            '\$${r['amount']}',
-            style: GoogleFonts.outfit(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.red,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${(r['amount'] as num?)?.toStringAsFixed(0) ?? '0'} đ',
+                style: GoogleFonts.outfit(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (isPending) Row(
+                children: [
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: Size.zero,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => onProcess(r['id'], false),
+                    child: Text('Từ chối', style: GoogleFonts.outfit(fontSize: 11)),
+                  ),
+                  const SizedBox(width: 6),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: Size.zero,
+                      elevation: 0,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () => onProcess(r['id'], true),
+                    child: Text('Phê Duyệt', style: GoogleFonts.outfit(fontSize: 11)),
+                  ),
+                ],
+              ) else StatusBadge(status: r['status']),
+            ],
           ),
-          const SizedBox(width: 16),
-          if (isPending) ...[
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-              ),
-              onPressed: () => onProcess(r['id'], false),
-              child: Text('Từ chối', style: GoogleFonts.outfit(fontSize: 12)),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                elevation: 0,
-              ),
-              onPressed: () => onProcess(r['id'], true),
-              child: Text('Phê Duyệt', style: GoogleFonts.outfit(fontSize: 12)),
-            ),
-          ] else
-            StatusBadge(status: r['status']),
         ],
       ),
     );

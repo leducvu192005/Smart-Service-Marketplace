@@ -99,6 +99,36 @@ class _ServiceManagementPageState extends State<ServiceManagementPage> {
     }
   }
 
+  Future<void> _deleteCategory(int id, String name) async {
+    // Hiện confirm dialog trước
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Xóa danh mục', style: GoogleFonts.outfit(fontWeight: FontWeight.w800)),
+        content: Text(
+          'Xóa danh mục "$name"?\nDanh mục phải rỗng (không có dịch vụ nào) mới có thể xóa.',
+          style: GoogleFonts.outfit(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await _api.client.delete('/admin/categories/$id');
+      _snack('Đã xóa danh mục "$name".', Colors.orange);
+      _load();
+    } catch (e) {
+      _snack('Không thể xóa: $e', Colors.red);
+    }
+  }
+
   void _snack(String msg, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -251,6 +281,7 @@ class _ServiceManagementPageState extends State<ServiceManagementPage> {
                           onAddService: () =>
                               _showServiceDialog(categoryId: cat['id']),
                           onEditService: (s) => _showServiceDialog(service: s),
+                          onDeleteCategory: () => _deleteCategory(cat['id'], '${cat['name']}'),
                         ),
                       )
                       .toList(),
@@ -275,11 +306,13 @@ class _CategorySection extends StatefulWidget {
   final Map<String, dynamic> category;
   final VoidCallback onAddService;
   final ValueChanged<Map<String, dynamic>> onEditService;
+  final VoidCallback onDeleteCategory;
 
   const _CategorySection({
     required this.category,
     required this.onAddService,
     required this.onEditService,
+    required this.onDeleteCategory,
   });
 
   @override
@@ -377,6 +410,12 @@ class _CategorySectionState extends State<_CategorySection> {
                       style: GoogleFonts.outfit(fontSize: 12),
                     ),
                     onPressed: widget.onAddService,
+                  ),
+                  // Nút xóa danh mục
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFEF4444)),
+                    tooltip: 'Xóa danh mục',
+                    onPressed: widget.onDeleteCategory,
                   ),
                   Icon(
                     _expanded ? Icons.expand_less : Icons.expand_more,

@@ -194,7 +194,10 @@ class RefundRequestResponse(BaseModel):
 
 class VoucherCreate(BaseModel):
     code: str
-    discount_amount: float
+    discount_amount: Optional[float] = None      # Backward compat
+    discount_value: Optional[float] = None       # Frontend Marketing page
+    discount_type: Optional[str] = "fixed"       # percentage | fixed
+    max_uses: Optional[int] = None
     expiry_date: Optional[datetime] = None
 
 
@@ -202,6 +205,10 @@ class VoucherResponse(BaseModel):
     id: int
     code: str
     discount_amount: float
+    discount_value: Optional[float] = None
+    discount_type: Optional[str] = "fixed"
+    max_uses: Optional[int] = None
+    used_count: Optional[int] = 0
     is_active: bool
     expiry_date: Optional[datetime] = None
     created_at: datetime

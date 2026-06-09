@@ -49,9 +49,16 @@ class _BookingDispatchPageState extends State<BookingDispatchPage> {
     final text = _query.trim().toLowerCase();
     if (text.isNotEmpty) {
       result = result.where((b) {
-        return '${b['booking_id'] ?? b['id']}'.contains(text) ||
-            '${b['service_name'] ?? ''}'.toLowerCase().contains(text) ||
-            '${b['address'] ?? ''}'.toLowerCase().contains(text);
+        final id = '${b['booking_id'] ?? b['id']}';
+        final service = '${b['service_name'] ?? ''}'.toLowerCase();
+        final address = '${b['address'] ?? ''}'.toLowerCase();
+        final customer = '${b['customer_name'] ?? b['customer_username'] ?? ''}'.toLowerCase();
+        final worker = '${b['worker_name'] ?? ''}'.toLowerCase();
+        return id.contains(text) ||
+            service.contains(text) ||
+            address.contains(text) ||
+            customer.contains(text) ||
+            worker.contains(text);
       }).toList();
     }
     return result;
@@ -292,8 +299,11 @@ class _Toolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final filters = const [
       ('all', 'Tất cả'),
+      ('pending_payment', 'Chờ thanh toán'),
       ('pending', 'Chờ'),
       ('accepted', 'Đã nhận'),
+      ('on_the_way', 'Đang đến'),
+      ('arrived', 'Đã đến'),
       ('in_progress', 'Đang làm'),
       ('done', 'Xong'),
       ('cancelled', 'Hủy'),
@@ -375,19 +385,23 @@ class _BookingsTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Table(
       columnWidths: const {
-        0: FixedColumnWidth(82),
-        1: FlexColumnWidth(1.8),
-        2: FlexColumnWidth(2.4),
-        3: FixedColumnWidth(128),
-        4: FixedColumnWidth(104),
-        5: FixedColumnWidth(128),
-        6: FixedColumnWidth(180),
+        0: FixedColumnWidth(72),
+        1: FlexColumnWidth(1.6),
+        2: FlexColumnWidth(1.6),
+        3: FlexColumnWidth(1.6),
+        4: FlexColumnWidth(2.0),
+        5: FixedColumnWidth(120),
+        6: FixedColumnWidth(96),
+        7: FixedColumnWidth(120),
+        8: FixedColumnWidth(160),
       },
       children: [
         TableRow(
           decoration: const BoxDecoration(color: Color(0xFFF9FAFB)),
           children: [
             'Mã',
+            'Khách hàng',
+            'Thợ phụ trách',
             'Dịch vụ',
             'Địa chỉ',
             'Lịch hẹn',
@@ -400,12 +414,22 @@ class _BookingsTable extends StatelessWidget {
           final id = _asInt(booking['booking_id'] ?? booking['id']);
           final status = '${booking['status'] ?? 'pending'}';
           final canOperate = status != 'cancelled' && status != 'done';
+          // Tên khách hàng
+          final customerName = booking['customer_name'] as String? ??
+              booking['customer_full_name'] as String? ??
+              (booking['customer_username'] != null ? '@${booking['customer_username']}' : 'Khách #${booking['customer_id'] ?? '?'}');
+          // Tên thợ
+          final workerName = booking['worker_name'] as String? ??
+              booking['worker_full_name'] as String? ??
+              (booking['worker_id'] != null ? 'Thợ #${booking['worker_id']}' : '—');
           return TableRow(
             decoration: const BoxDecoration(
               border: Border(bottom: BorderSide(color: Color(0xFFEAECF0))),
             ),
             children: [
               _cell('#$id', strong: true),
+              _nameCell(customerName, Icons.person_rounded, const Color(0xFF2563EB)),
+              _nameCell(workerName, Icons.construction_rounded, const Color(0xFF059669)),
               _cell('${booking['service_name'] ?? 'Dịch vụ'}'),
               _cell('${booking['address'] ?? ''}', muted: true),
               _cell(_formatTime(booking['scheduled_time']), muted: true),
@@ -498,6 +522,38 @@ class _BookingsTable extends StatelessWidget {
           fontSize: 13,
           fontWeight: strong ? FontWeight.w700 : FontWeight.w500,
         ),
+      ),
+    );
+  }
+
+  static Widget _nameCell(String name, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, color: color, size: 14),
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.outfit(
+                fontSize: 12,
+                color: const Color(0xFF344054),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

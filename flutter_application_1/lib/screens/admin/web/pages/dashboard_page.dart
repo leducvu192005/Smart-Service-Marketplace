@@ -44,15 +44,32 @@ class _DashboardPageState extends State<DashboardPage> {
       if (!widget.isAdmin) {
         final workerRes = await _api.client.get('/support/workers');
         workers = workerRes.data as List;
-        final supportRevenue = allBookings
-            .where((booking) => booking['status'] == 'done')
-            .fold<num>(0, (sum, booking) => sum + _toNum(booking['price']));
-        stats = {
-          'total_users': 0,
-          'total_workers': workers.length,
-          'total_bookings': allBookings.length,
-          'total_revenue': supportRevenue,
-        };
+        // Lấy thống kê support từ API thực
+        try {
+          final supportStatsRes = await _api.client.get('/support/support-stats');
+          final supportStats = supportStatsRes.data as Map<String, dynamic>;
+          stats = {
+            'total_users': 0,
+            'total_workers': supportStats['total_workers'] ?? workers.length,
+            'total_bookings': supportStats['total_bookings'] ?? allBookings.length,
+            'total_revenue': allBookings
+                .where((b) => b['status'] == 'done')
+                .fold<num>(0, (sum, b) => sum + _toNum(b['price'])),
+            'pending_tickets': supportStats['pending_tickets'] ?? 0,
+            'pending_workers': supportStats['pending_workers'] ?? 0,
+            'pending_bookings': supportStats['pending_bookings'] ?? 0,
+          };
+        } catch (_) {
+          final supportRevenue = allBookings
+              .where((booking) => booking['status'] == 'done')
+              .fold<num>(0, (sum, booking) => sum + _toNum(booking['price']));
+          stats = {
+            'total_users': 0,
+            'total_workers': workers.length,
+            'total_bookings': allBookings.length,
+            'total_revenue': supportRevenue,
+          };
+        }
       }
 
       if (!mounted) return;
@@ -86,6 +103,9 @@ class _DashboardPageState extends State<DashboardPage> {
             _HeroPanel(isAdmin: widget.isAdmin),
             const SizedBox(height: 20),
             _StatsGrid(stats: _stats, isAdmin: widget.isAdmin),
+            const SizedBox(height: 16),
+            // Pending alerts row — chỉ hiện nếu có dữ liệu
+            _PendingAlertsRow(stats: _stats, isAdmin: widget.isAdmin),
             const SizedBox(height: 20),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -246,6 +266,80 @@ class _StatsGrid extends StatelessWidget {
     final amount = value is num ? value : num.tryParse('$value') ?? 0;
     return '${amount.toStringAsFixed(0)} đ';
   }
+}
+
+// Widget hiển thị cảnh báo các mục đang chờ xử lý
+class _PendingAlertsRow extends StatelessWidget {
+  final Map<String, dynamic> stats;
+  final bool isAdmin;
+
+  const _PendingAlertsRow({required this.stats, required this.isAdmin});
+
+  @override
+  Widget build(BuildContext context) {
+    final alerts = <_AlertItem>[];
+
+    if (isAdmin) {
+      final pw = stats['pending_workers'] ?? 0;
+      final pt = stats['pending_tickets'] ?? 0;
+      final pwd = stats['pending_withdrawals'] ?? 0;
+      final pr = stats['pending_refunds'] ?? 0;
+      if (pw > 0) alerts.add(_AlertItem('$pw thợ chờ duyệt hồ sơ', Icons.verified_user_rounded, const Color(0xFF7C3AED)));
+      if (pt > 0) alerts.add(_AlertItem('$pt ticket chờ xử lý', Icons.confirmation_number_rounded, const Color(0xFFF59E0B)));
+      if (pwd > 0) alerts.add(_AlertItem('$pwd yêu cầu rút tiền', Icons.wallet_rounded, const Color(0xFF059669)));
+      if (pr > 0) alerts.add(_AlertItem('$pr yêu cầu hoàn tiền', Icons.assignment_return_rounded, const Color(0xFFEF4444)));
+    } else {
+      final pw = stats['pending_workers'] ?? 0;
+      final pt = stats['pending_tickets'] ?? 0;
+      final pb = stats['pending_bookings'] ?? 0;
+      if (pw > 0) alerts.add(_AlertItem('$pw thợ chờ duyệt', Icons.verified_user_rounded, const Color(0xFF7C3AED)));
+      if (pt > 0) alerts.add(_AlertItem('$pt ticket chờ xử lý', Icons.confirmation_number_rounded, const Color(0xFFF59E0B)));
+      if (pb > 0) alerts.add(_AlertItem('$pb đơn hàng chờ điều phối', Icons.alt_route_rounded, const Color(0xFF2563EB)));
+    }
+
+    if (alerts.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.notifications_active_rounded, color: Color(0xFFF59E0B), size: 18),
+          const SizedBox(width: 10),
+          Text(
+            'Cần xử lý: ',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF92400E)),
+          ),
+          Expanded(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              children: alerts.map((a) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(a.icon, size: 14, color: a.color),
+                  const SizedBox(width: 4),
+                  Text(a.label, style: GoogleFonts.outfit(fontSize: 12, color: a.color, fontWeight: FontWeight.w600)),
+                ],
+              )).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AlertItem {
+  final String label;
+  final IconData icon;
+  final Color color;
+  const _AlertItem(this.label, this.icon, this.color);
 }
 
 class _StatData {

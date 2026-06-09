@@ -66,191 +66,14 @@ class _TicketManagementPageState extends State<TicketManagementPage> {
   }
 
   void _openChat(Map<String, dynamic> ticket) {
-    final controller = TextEditingController();
-    final messages = <_ChatMessage>[
-      _ChatMessage(
-        isAgent: false,
-        text: '${ticket['description'] ?? 'Khách hàng cần hỗ trợ.'}',
-      ),
-      const _ChatMessage(
-        isAgent: true,
-        text:
-            'Chào bạn, bộ phận hỗ trợ đã tiếp nhận phản ánh và đang kiểm tra thông tin.',
-      ),
-    ];
-
     showDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: SizedBox(
-                width: 620,
-                height: 560,
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF101828),
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(16),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.support_agent_rounded,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${ticket['title'] ?? 'Ticket hỗ trợ'}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.outfit(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Ticket #${ticket['id']} | Đơn #${ticket['booking_id'] ?? 'N/A'}',
-                                  style: GoogleFonts.outfit(
-                                    color: const Color(0xFF98A2B3),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.close_rounded,
-                              color: Colors.white70,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(18),
-                        itemCount: messages.length,
-                        itemBuilder: (context, index) =>
-                            _MessageBubble(message: messages[index]),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: controller,
-                              style: GoogleFonts.outfit(fontSize: 13),
-                              decoration: InputDecoration(
-                                hintText: 'Nhập phản hồi hỗ trợ',
-                                hintStyle: GoogleFonts.outfit(
-                                  color: const Color(0xFF98A2B3),
-                                ),
-                                filled: true,
-                                fillColor: const Color(0xFFF9FAFB),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFFD0D5DD),
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFFD0D5DD),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          ElevatedButton(
-                            onPressed: () {
-                              final text = controller.text.trim();
-                              if (text.isEmpty) return;
-                              setDialogState(() {
-                                messages.add(
-                                  _ChatMessage(isAgent: true, text: text),
-                                );
-                                controller.clear();
-                              });
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2563EB),
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size(46, 46),
-                              elevation: 0,
-                            ),
-                            child: const Icon(Icons.send_rounded, size: 18),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          if (ticket['status'] == 'pending')
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                _updateStatus(
-                                  _asInt(ticket['id']),
-                                  'in_progress',
-                                );
-                              },
-                              icon: const Icon(
-                                Icons.play_arrow_rounded,
-                                size: 18,
-                              ),
-                              label: const Text('Nhận xử lý'),
-                            ),
-                          const SizedBox(width: 8),
-                          if (ticket['status'] != 'closed')
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                _updateStatus(_asInt(ticket['id']), 'closed');
-                              },
-                              icon: const Icon(
-                                Icons.check_circle_rounded,
-                                size: 18,
-                              ),
-                              label: const Text('Đóng ticket'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF059669),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder: (context) => _ChatDialog(
+        ticket: ticket,
+        api: _api,
+        onUpdateStatus: _updateStatus,
+        asInt: _asInt,
+      ),
     );
   }
 
@@ -574,4 +397,360 @@ class _TicketStyle {
   final Color color;
 
   const _TicketStyle(this.label, this.color);
+}
+
+// ─── Chat Dialog kết nối API thực ──────────────────────────────────────────
+class _ChatDialog extends StatefulWidget {
+  final Map<String, dynamic> ticket;
+  final ApiService api;
+  final Future<void> Function(int, String) onUpdateStatus;
+  final int Function(dynamic) asInt;
+
+  const _ChatDialog({
+    required this.ticket,
+    required this.api,
+    required this.onUpdateStatus,
+    required this.asInt,
+  });
+
+  @override
+  State<_ChatDialog> createState() => _ChatDialogState();
+}
+
+class _ChatDialogState extends State<_ChatDialog> {
+  final _controller = TextEditingController();
+  final _scrollController = ScrollController();
+  List<Map<String, dynamic>> _messages = [];
+  bool _loadingMsgs = true;
+  bool _sending = false;
+
+  int? get _bookingId {
+    final v = widget.ticket['booking_id'];
+    if (v == null) return null;
+    return v is int ? v : int.tryParse('$v');
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadMessages() async {
+    if (_bookingId == null) {
+      // Không có booking → hiển thị mô tả ticket như tin nhắn đầu tiên
+      setState(() {
+        _messages = [
+          {
+            'sender_id': -1, // khách hàng
+            'message_text': widget.ticket['description'] ?? 'Khách hàng cần hỗ trợ.',
+            'created_at': widget.ticket['created_at'] ?? '',
+          }
+        ];
+        _loadingMsgs = false;
+      });
+      return;
+    }
+    try {
+      final res = await widget.api.client.get('/support/bookings/$_bookingId/chat');
+      if (mounted) {
+        setState(() {
+          _messages = List<Map<String, dynamic>>.from(res.data ?? []);
+          // Nếu chưa có tin nào, thêm mô tả ticket làm tin đầu
+          if (_messages.isEmpty) {
+            _messages.insert(0, {
+              'sender_id': -1,
+              'message_text': widget.ticket['description'] ?? 'Khách hàng cần hỗ trợ.',
+              'created_at': widget.ticket['created_at'] ?? '',
+            });
+          }
+          _loadingMsgs = false;
+        });
+        _scrollToBottom();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingMsgs = false);
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _sending) return;
+
+    setState(() => _sending = true);
+    _controller.clear();
+
+    // Optimistic update
+    setState(() {
+      _messages.add({
+        'sender_id': 0, // support agent (current user)
+        'message_text': text,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    });
+    _scrollToBottom();
+
+    if (_bookingId != null) {
+      try {
+        await widget.api.client.post(
+          '/support/bookings/$_bookingId/chat',
+          data: {'message_text': text},
+        );
+      } catch (_) {
+        // Tin đã hiện trên UI, bỏ qua lỗi network
+      }
+    }
+    if (mounted) setState(() => _sending = false);
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  bool _isAgentMsg(Map<String, dynamic> msg) {
+    // sender_id == 0 là optimistic support, sender_id != -1 và khác customer là agent
+    final sid = msg['sender_id'];
+    if (sid == null || sid == -1) return false;
+    // Giả định sender là support nếu khác với creator ticket
+    final creatorId = widget.ticket['creator_id'];
+    if (creatorId == null) return sid == 0;
+    return sid != creatorId && sid != -1;
+  }
+
+  String _formatTime(dynamic val) {
+    if (val == null || '$val'.isEmpty) return '';
+    try {
+      final dt = DateTime.parse('$val').toLocal();
+      return '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ticket = widget.ticket;
+    final status = '${ticket['status'] ?? 'pending'}';
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SizedBox(
+        width: 640,
+        height: 600,
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: const BoxDecoration(
+                color: Color(0xFF101828),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.support_agent_rounded, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${ticket['title'] ?? 'Ticket hỗ trợ'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Ticket #${ticket['id']}  •  Đơn #${_bookingId ?? 'N/A'}',
+                          style: GoogleFonts.outfit(color: const Color(0xFF98A2B3), fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+
+            // Messages
+            Expanded(
+              child: _loadingMsgs
+                  ? const Center(child: CircularProgressIndicator())
+                  : _messages.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Chưa có tin nhắn nào',
+                        style: GoogleFonts.outfit(color: const Color(0xFF667085)),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(18),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, i) {
+                        final msg = _messages[i];
+                        final isAgent = _isAgentMsg(msg);
+                        final text = '${msg['message_text'] ?? ''}';
+                        final time = _formatTime(msg['created_at']);
+                        return Align(
+                          alignment: isAgent ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 420),
+                            margin: const EdgeInsets.only(bottom: 10),
+                            child: Column(
+                              crossAxisAlignment: isAgent ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: isAgent ? const Color(0xFF2563EB) : const Color(0xFFF2F4F7),
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: const Radius.circular(14),
+                                      topRight: const Radius.circular(14),
+                                      bottomLeft: Radius.circular(isAgent ? 14 : 4),
+                                      bottomRight: Radius.circular(isAgent ? 4 : 14),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    text,
+                                    style: GoogleFonts.outfit(
+                                      color: isAgent ? Colors.white : const Color(0xFF101828),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                                if (time.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 3),
+                                    child: Text(
+                                      isAgent ? 'Support • $time' : 'Khách hàng • $time',
+                                      style: GoogleFonts.outfit(fontSize: 10, color: const Color(0xFF98A2B3)),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+
+            // Input box
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: Color(0xFFE4E7EC))),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      style: GoogleFonts.outfit(fontSize: 13),
+                      onSubmitted: (_) => _sendMessage(),
+                      decoration: InputDecoration(
+                        hintText: 'Nhập phản hồi hỗ trợ...',
+                        hintStyle: GoogleFonts.outfit(color: const Color(0xFF98A2B3), fontSize: 13),
+                        filled: true,
+                        fillColor: const Color(0xFFF9FAFB),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Color(0xFF2563EB)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: _sending ? null : _sendMessage,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(46, 46),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: _sending
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.send_rounded, size: 18),
+                  ),
+                ],
+              ),
+            ),
+
+            // Action buttons
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (status == 'pending')
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        widget.onUpdateStatus(widget.asInt(ticket['id']), 'in_progress');
+                      },
+                      icon: const Icon(Icons.play_arrow_rounded, size: 17),
+                      label: const Text('Nhận xử lý'),
+                      style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                    ),
+                  const SizedBox(width: 8),
+                  if (status != 'closed')
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        widget.onUpdateStatus(widget.asInt(ticket['id']), 'closed');
+                      },
+                      icon: const Icon(Icons.check_circle_rounded, size: 17),
+                      label: const Text('Đóng ticket'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

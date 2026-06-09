@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timezone
 from pydantic import BaseModel, EmailStr
+import random
+import string
 
 import database
 import models
@@ -46,6 +48,12 @@ def get_all_users(db: Session = Depends(database.get_db), current_user: models.U
     return db.query(models.User).all()
 
 
+@router.get("/support-accounts", response_model=List[schemas.UserResponse])
+def get_support_accounts(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Lấy danh sách tất cả tài khoản Support"""
+    return db.query(models.User).filter(models.User.role == models.RoleEnum.SUPPORT).all()
+
+
 @router.put("/users/{user_id}/status", response_model=schemas.UserResponse)
 def update_user_status(user_id: int, is_active: bool, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -55,6 +63,36 @@ def update_user_status(user_id: int, is_active: bool, db: Session = Depends(data
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.put("/users/{user_id}/toggle-active", response_model=schemas.UserResponse)
+def toggle_user_active(user_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Đảo ngược trạng thái kích hoạt tài khoản (khóa / mở khóa)"""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.role == models.RoleEnum.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot deactivate admin account")
+    user.is_active = not user.is_active
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/users/{user_id}/reset-password")
+def reset_user_password(user_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Đặt lại mật khẩu cho người dùng và trả về mật khẩu mới"""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Tạo mật khẩu ngẫu nhiên 8 ký tự (chữ + số)
+    chars = string.ascii_letters + string.digits
+    new_password = ''.join(random.choices(chars, k=8))
+    user.hashed_password = auth_utils.get_password_hash(new_password)
+    db.commit()
+    
+    return {"message": "Password reset successfully", "new_password": new_password, "user_id": user_id}
 
 
 @router.get("/dashboard")
@@ -70,11 +108,21 @@ def get_dashboard_stats(db: Session = Depends(database.get_db), current_user: mo
         if b.service and b.service.price is not None:
             total_revenue += float(b.service.price)
     
+    # Thống kê pending để hiển thị trên dashboard
+    pending_tickets = db.query(models.Ticket).filter(models.Ticket.status == "pending").count()
+    pending_withdrawals = db.query(models.WithdrawalRequest).filter(models.WithdrawalRequest.status == "pending").count()
+    pending_refunds = db.query(models.RefundRequest).filter(models.RefundRequest.status == "pending").count()
+    pending_workers = db.query(models.Worker).filter(models.Worker.status == "pending").count()
+    
     return {
         "total_users": total_users,
         "total_workers": total_workers,
         "total_bookings": total_bookings,
-        "total_revenue": total_revenue
+        "total_revenue": total_revenue,
+        "pending_tickets": pending_tickets,
+        "pending_withdrawals": pending_withdrawals,
+        "pending_refunds": pending_refunds,
+        "pending_workers": pending_workers
     }
 
 
@@ -87,6 +135,23 @@ def create_category(category: schemas.ServiceCategoryBase, db: Session = Depends
     db.commit()
     db.refresh(new_category)
     return new_category
+
+
+@router.delete("/categories/{category_id}")
+def delete_category(category_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Xóa danh mục dịch vụ. Cảnh báo nếu còn dịch vụ bên trong."""
+    category = db.query(models.ServiceCategory).filter(models.ServiceCategory.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+    service_count = db.query(models.Service).filter(models.Service.category_id == category_id).count()
+    if service_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete category with {service_count} services. Delete services first."
+        )
+    db.delete(category)
+    db.commit()
+    return {"message": f"Category {category_id} deleted successfully"}
 
 
 @router.post("/services", response_model=schemas.ServiceResponse)
@@ -134,9 +199,32 @@ def delete_service(service_id: int, db: Session = Depends(database.get_db), curr
 
 # --- Quản lý Yêu cầu Rút tiền (Withdrawals) ---
 
-@router.get("/withdrawals", response_model=List[schemas.WithdrawalResponse])
+@router.get("/withdrawals")
 def get_withdrawals(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
-    return db.query(models.WithdrawalRequest).all()
+    """Trả về danh sách yêu cầu rút tiền kèm tên thợ"""
+    requests = db.query(models.WithdrawalRequest).order_by(models.WithdrawalRequest.created_at.desc()).all()
+    result = []
+    for req in requests:
+        worker_name = None
+        worker_phone = None
+        worker_wallet = None
+        if req.worker:
+            if req.worker.user:
+                worker_name = req.worker.user.full_name
+            worker_phone = req.worker.phone
+            worker_wallet = req.worker.wallet_balance
+        result.append({
+            "id": req.id,
+            "worker_id": req.worker_id,
+            "worker_name": worker_name,
+            "worker_phone": worker_phone,
+            "worker_wallet": worker_wallet,
+            "amount": req.amount,
+            "status": req.status,
+            "created_at": req.created_at.isoformat() if req.created_at else None,
+            "updated_at": req.updated_at.isoformat() if req.updated_at else None,
+        })
+    return result
 
 
 @router.post("/withdrawals/{request_id}/approve", response_model=schemas.WithdrawalResponse)
@@ -194,9 +282,38 @@ def reject_withdrawal(request_id: int, db: Session = Depends(database.get_db), c
 
 # --- Quản lý Hoàn tiền (Refunds) ---
 
-@router.get("/refunds", response_model=List[schemas.RefundRequestResponse])
+@router.get("/refunds")
 def get_refunds(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
-    return db.query(models.RefundRequest).all()
+    """Trả về danh sách yêu cầu hoàn tiền kèm thông tin khách hàng và dịch vụ"""
+    requests = db.query(models.RefundRequest).order_by(models.RefundRequest.created_at.desc()).all()
+    result = []
+    for req in requests:
+        customer_name = None
+        service_name = None
+        worker_name = None
+        booking_status = None
+        if req.booking:
+            booking_status = req.booking.status.value if hasattr(req.booking.status, 'value') else req.booking.status
+            if req.booking.customer:
+                customer_name = req.booking.customer.full_name
+            if req.booking.service:
+                service_name = req.booking.service.name
+            if req.booking.worker and req.booking.worker.user:
+                worker_name = req.booking.worker.user.full_name
+        result.append({
+            "id": req.id,
+            "booking_id": req.booking_id,
+            "booking_status": booking_status,
+            "customer_name": customer_name,
+            "worker_name": worker_name,
+            "service_name": service_name,
+            "reason": req.reason,
+            "amount": req.amount,
+            "status": req.status,
+            "created_at": req.created_at.isoformat() if req.created_at else None,
+            "updated_at": req.updated_at.isoformat() if req.updated_at else None,
+        })
+    return result
 
 
 @router.post("/refunds/{request_id}/approve", response_model=schemas.RefundRequestResponse)
@@ -305,15 +422,28 @@ def get_support_logs(db: Session = Depends(database.get_db), current_user: model
     return db.query(models.SupportActivityLog).order_by(models.SupportActivityLog.created_at.desc()).all()
 
 
+@router.get("/vouchers", response_model=List[schemas.VoucherResponse])
+def get_vouchers(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Lấy danh sách tất cả voucher"""
+    return db.query(models.Voucher).order_by(models.Voucher.created_at.desc()).all()
+
+
 @router.post("/vouchers", response_model=schemas.VoucherResponse)
 def create_voucher(payload: schemas.VoucherCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
     existing = db.query(models.Voucher).filter(models.Voucher.code == payload.code).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Voucher code already exists")
-        
+    
+    # Hỗ trợ cả 2 field name: discount_value (từ Marketing Page) và discount_amount (backward compat)
+    disc_value = payload.discount_value if payload.discount_value is not None else (payload.discount_amount or 0.0)
+    
     voucher = models.Voucher(
         code=payload.code,
-        discount_amount=payload.discount_amount,
+        discount_amount=disc_value,       # Backward compat
+        discount_value=disc_value,        # New field
+        discount_type=payload.discount_type or "fixed",
+        max_uses=payload.max_uses,
+        used_count=0,
         expiry_date=payload.expiry_date,
         is_active=True
     )
@@ -321,6 +451,17 @@ def create_voucher(payload: schemas.VoucherCreate, db: Session = Depends(databas
     db.commit()
     db.refresh(voucher)
     return voucher
+
+
+@router.delete("/vouchers/{voucher_id}")
+def delete_voucher(voucher_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Xóa voucher theo ID"""
+    voucher = db.query(models.Voucher).filter(models.Voucher.id == voucher_id).first()
+    if not voucher:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Voucher not found")
+    db.delete(voucher)
+    db.commit()
+    return {"message": f"Voucher {voucher_id} deleted successfully"}
 
 
 @router.post("/notifications", response_model=schemas.NotificationResponse)
@@ -333,4 +474,4 @@ def create_notification(payload: schemas.NotificationCreate, db: Session = Depen
     db.add(notification)
     db.commit()
     db.refresh(notification)
-    return notification
+    return notification

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
-from routers import auth, customer, worker, support, admin, workers, payments
+from routers import auth, customer, worker, support, admin, workers, payments, notifications
 from contextlib import asynccontextmanager
 import subprocess
 import os
@@ -55,7 +55,7 @@ def seed_data():
     try:
         category_count = db.query(models.ServiceCategory).count()
         if category_count == 0:
-            print("⏳ Đang nạp danh mục và dịch vụ mẫu vào hệ thống...")
+            print("[SEED] Dang nap danh muc va dich vu mau vao he thong...")
             
             cleaning_cat = models.ServiceCategory(name="Dọn dẹp", description="Các dịch vụ vệ sinh và dọn dẹp nhà cửa chuyên nghiệp.")
             it_cat = models.ServiceCategory(name="Giải pháp IT", description="Cài đặt, sửa chữa máy tính và hỗ trợ kỹ thuật.")
@@ -84,10 +84,10 @@ def seed_data():
             ]
             db.add_all(services)
             db.commit()
-            print("✅ Đã nạp thành công dữ liệu dịch vụ cố định!")
+            print("[SEED] Da nap thanh cong du lieu dich vu co dinh!")
     except Exception as e:
         db.rollback()
-        print(f"❌ Lỗi nạp dữ liệu tĩnh: {e}")
+        print(f"[ERROR] Loi nap du lieu tinh: {e}")
     finally:
         db.close()
 
@@ -98,7 +98,7 @@ seed_data()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Khối mã chạy khi Server bắt đầu khởi động
-    print("🚀 FastAPI Server đang nổ máy...")
+    print("[START] FastAPI Server dang khoi dong...")
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
         script_path = os.path.join(current_dir, "test_admin_support.py")
@@ -106,16 +106,16 @@ async def lifespan(app: FastAPI):
         if os.path.exists(script_path):
             # Tự động thực thi file script tạo tài khoản thử nghiệm âm thầm
             subprocess.Popen([sys.executable, script_path])
-            print("🤖 [AUTO-SEED] Đang gọi tập lệnh nạp tài khoản mẫu (Admin/Support)...")
+            print("[AUTO-SEED] Dang goi tap lenh nap tai khoan mau (Admin/Support)...")
         else:
-            print("⚠️ [AUTO-SEED] Không tìm thấy file test_admin_support.py trong thư mục Backend.")
+            print("[AUTO-SEED] Khong tim thay file test_admin_support.py trong thu muc Backend.")
     except Exception as e:
-        print(f"❌ [AUTO-SEED] Thất bại khi kích hoạt nạp tài khoản: {e}")
+        print(f"[ERROR] Auto-seed that bai: {e}")
         
     yield  # Hệ thống hoạt động tại đây
     
     # Khối mã chạy khi Server tắt máy (Nếu cần)
-    print("🛑 FastAPI Server đang tắt...")
+    print("[STOP] FastAPI Server dang tat...")
 
 
 # 5. Khởi tạo ứng dụng FastAPI
@@ -149,6 +149,7 @@ app.include_router(workers.router)
 app.include_router(support.router)
 app.include_router(admin.router)
 app.include_router(payments.router)
+app.include_router(notifications.router)
 
 
 @app.get("/")
