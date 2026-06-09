@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 import 'about_screen.dart';
+import 'favorite_services_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -503,11 +504,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen())),
                       ),
                       _MenuItem(
-                        icon: Icons.help_outline_rounded,
-                        iconColor: const Color(0xFFF59E0B),
-                        title: 'Trợ giúp & Hỗ trợ',
-                        subtitle: 'Gửi ticket khi gặp vấn đề',
-                        onTap: () => _showSnack('Tính năng sắp có!'),
+                        icon: Icons.favorite_outline_rounded,
+                        iconColor: const Color(0xFFEC4899),
+                        title: 'Dịch vụ yêu thích',
+                        subtitle: 'Xem các dịch vụ bạn đã lưu',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const FavoriteServicesScreen(),
+                          ),
+                        ),
                       ),
                       _MenuItem(
                         icon: Icons.star_outline_rounded,

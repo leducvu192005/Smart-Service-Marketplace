@@ -64,8 +64,8 @@ def _build_vnpay_url(booking_id: int, amount: float, txn_ref: str, ip_addr: str)
     # 1. Sắp xếp theo key A-Z
     sorted_params = sorted(params.items())
     
-    # 2. ĐÃ SỬA: Dùng quote_via=urllib.parse.quote theo chuẩn VNPAY 2.1.0 (khoảng trắng thành %20)
-    query_string = urllib.parse.urlencode(sorted_params, quote_via=urllib.parse.quote)
+    # 2. ĐÃ SỬA: Dùng quote_via=urllib.parse.quote_plus theo chuẩn VNPAY 2.1.0 (khoảng trắng thành dấu +)
+    query_string = urllib.parse.urlencode(sorted_params, quote_via=urllib.parse.quote_plus)
     
     # 3. Tạo chữ ký trên chuỗi query đã encode
     secure_hash = _hmac_sha512(VNP_HASH_SECRET, query_string)
@@ -80,8 +80,8 @@ def _verify_vnpay_hash(params: dict) -> bool:
 
     sorted_params = sorted(params.items())
     
-    # ĐÃ SỬA: Thay đổi quote_via thành quote để khớp hoàn toàn với chuỗi callback từ VNPAY gửi về
-    query_string = urllib.parse.urlencode(sorted_params, quote_via=urllib.parse.quote)
+    # ĐÃ SỬA: Thay đổi quote thành quote_plus để khớp hoàn toàn với chuỗi callback từ VNPAY gửi về
+    query_string = urllib.parse.urlencode(sorted_params, quote_via=urllib.parse.quote_plus)
     expected_hash = _hmac_sha512(VNP_HASH_SECRET, query_string)
 
     return hmac.compare_digest(received_hash.lower(), expected_hash.lower())
@@ -161,15 +161,15 @@ def create_payment(
 
 
 @router.get("/return")
-def payment_return(request: Request, db: Session = Depends(database.get_db)):
+def payment_return(request: Request):
     """
     VNPay redirect customer về đây sau khi thanh toán.
-    - Cập nhật DB tại đây làm fallback cho môi trường localhost (khi IPN không thể gọi tới).
+    ⚠️ CHỈ hiển thị kết quả — KHÔNG cập nhật DB tại đây.
+    IPN mới là nguồn chính xác nhận thanh toán.
     """
     params = dict(request.query_params)
     is_valid = _verify_vnpay_hash(params.copy())
 
-    # Lấy thông tin
     response_code = params.get("vnp_ResponseCode", "")
     txn_ref = params.get("vnp_TxnRef", "")
 
@@ -181,33 +181,9 @@ def payment_return(request: Request, db: Session = Depends(database.get_db)):
         }
 
     if response_code == "00":
-        # 🔄 Cập nhật trạng thái thanh toán & đơn hàng (môi trường localhost)
-        payment = db.query(models.Payment).filter(
-            models.Payment.vnp_txn_ref == txn_ref
-        ).first()
-        if payment and payment.status != "paid":
-            payment.status = "paid"
-            payment.vnp_transaction_no = params.get("vnp_TransactionNo", "")
-
-            # Cập nhật booking status → paid_confirmed
-            booking = db.query(models.Booking).filter(
-                models.Booking.id == payment.booking_id,
-            ).first()
-            if booking:
-                booking.status = models.BookingStatusEnum.PAID_CONFIRMED
-
-                # Tạo notification
-                notif = models.UserNotification(
-                    user_id=booking.customer_id,
-                    title="Thanh toán thành công",
-                    message=f"Đơn hàng #{booking.id} đã thanh toán {payment.amount:,.0f}đ. Đang chờ thợ nhận việc.",
-                )
-                db.add(notif)
-            db.commit()
-
         return {
             "success": True,
-            "message": "Thanh toán thành công! Đơn hàng đã chuyển sang trạng thái chờ thợ.",
+            "message": "Thanh toán thành công! Đơn hàng sẽ được cập nhật tự động.",
             "txn_ref": txn_ref,
         }
     else:

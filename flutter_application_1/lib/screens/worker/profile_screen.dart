@@ -36,6 +36,7 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
   double _walletBalance = 0.0;
   int _totalJobs = 0;
   double _rating = 0.0;
+  int _totalReviews = 0;
 
   // New fields for selectable skill categories
   List<dynamic> _availableSkills = [];
@@ -79,6 +80,7 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
           _walletBalance = (data['wallet_balance'] as num?)?.toDouble() ?? 0.0;
           _totalJobs = (data['total_jobs'] as num?)?.toInt() ?? 0;
           _rating = (data['rating'] as num?)?.toDouble() ?? 0.0;
+          _totalReviews = (data['total_reviews'] as num?)?.toInt() ?? 0;
           
           _availableSkills = categories;
           // Parse skills from database comma-separated format
@@ -102,6 +104,99 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
         );
       }
     }
+  }
+
+  String _formatPrice(double price) {
+    if (price >= 1000) {
+      final String str = price.toStringAsFixed(0);
+      final RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+      final String result = str.replaceAllMapped(reg, (Match m) => '${m[1]}.');
+      return '$resultđ';
+    } else {
+      return '\$${price.toStringAsFixed(0)}';
+    }
+  }
+
+  void _showWithdrawDialog() {
+    final amountController = TextEditingController();
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text('Yêu Cầu Rút Tiền', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Số dư khả dụng: ${_formatPrice(_walletBalance)}',
+                    style: GoogleFonts.outfit(color: Colors.grey.shade600, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Số tiền muốn rút (VND)',
+                      prefixIcon: Icon(Icons.payments_outlined),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Hủy'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting ? null : () async {
+                    final amt = double.tryParse(amountController.text) ?? 0.0;
+                    if (amt <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Vui lòng nhập số tiền hợp lệ')),
+                      );
+                      return;
+                    }
+                    if (amt > _walletBalance) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Số dư ví không đủ')),
+                      );
+                      return;
+                    }
+                    setStateDialog(() => isSubmitting = true);
+                    try {
+                      await _apiService.client.post('/workers/withdraw', data: {'amount': amt});
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Yêu cầu rút tiền của bạn đã gửi lên Admin phê duyệt.')),
+                        );
+                        _fetchProfile();
+                      }
+                    } catch (e) {
+                      setStateDialog(() => isSubmitting = false);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Lỗi rút tiền: $e')),
+                        );
+                      }
+                    }
+                  },
+                  child: isSubmitting 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Gửi Yêu Cầu'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _saveProfile() async {
@@ -367,7 +462,7 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
                 Expanded(
                   child: _buildStatItem(
                     label: 'Số dư ví',
-                    value: '${_walletBalance.toStringAsFixed(0)}đ',
+                    value: _formatPrice(_walletBalance),
                     icon: Icons.account_balance_wallet_outlined,
                     color: Colors.green,
                   ),
@@ -386,9 +481,27 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
             const SizedBox(height: 12),
             _buildStatItem(
               label: 'Đánh giá trung bình',
-              value: '${_rating.toStringAsFixed(1)} / 5.0 ⭐',
+              value: '${_rating.toStringAsFixed(1)} / 5.0 ⭐ ($_totalReviews đánh giá)',
               icon: Icons.star_outline_rounded,
               color: Colors.orange,
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: Color(0xFFF1F5F9)),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.payments_outlined, size: 20, color: Colors.purple),
+              ),
+              title: Text('Yêu cầu rút tiền từ ví', style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 13)),
+              subtitle: Text('Gửi yêu cầu rút tiền lên hệ thống quản trị', style: GoogleFonts.outfit(fontSize: 11, color: Colors.grey[500])),
+              trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey[400]),
+              onTap: _showWithdrawDialog,
             ),
           ],
         ),

@@ -43,8 +43,8 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildNavItem(0, Icons.home_outlined),
-            _buildNavItem(1, Icons.calendar_today_outlined),
-            _buildNavItem(2, Icons.people_outline),
+            _buildNavItem(1, Icons.grid_view),
+            _buildNavItem(2, Icons.message_outlined),
             _buildNavItem(3, Icons.person_outline),
           ],
         ),
