@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../providers/auth_provider.dart';
 import '../../../../services/api_service.dart';
 import '../widgets/web_card.dart';
 
@@ -16,31 +18,38 @@ class _WorkerVerificationPageState extends State<WorkerVerificationPage> {
   bool _loading = true;
   List<dynamic> _workers = [];
 
+  String _prefix(BuildContext context) {
+    final role = context.read<AuthProvider>().role ?? '';
+    return role == 'admin' ? '/admin' : '/support';
+  }
+
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await _api.client.get('/support/workers/pending');
+      final prefix = _prefix(context);
+      final res = await _api.client.get('$prefix/workers/pending');
       if (mounted) {
         setState(() {
-          _workers = res.data;
+          _workers = res.data is List ? List<dynamic>.from(res.data) : [];
           _loading = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) setState(() => _loading = false);
     }
   }
 
   Future<void> _approve(int id) async {
     try {
-      await _api.client.post('/support/workers/$id/approve');
-      _snack('Đã duyệt hồ sơ thợ.', const Color(0xFF059669));
+      final prefix = _prefix(context);
+      await _api.client.post('$prefix/workers/$id/approve');
+      _snack('✅ Đã duyệt hồ sơ thợ thành công!', const Color(0xFF059669));
       _load();
     } catch (e) {
       _snack('Không thể duyệt hồ sơ: $e', const Color(0xFFDC2626));
@@ -49,7 +58,8 @@ class _WorkerVerificationPageState extends State<WorkerVerificationPage> {
 
   Future<void> _reject(int id) async {
     try {
-      await _api.client.post('/support/workers/$id/reject');
+      final prefix = _prefix(context);
+      await _api.client.post('$prefix/workers/$id/reject');
       _snack('Đã từ chối hồ sơ thợ.', const Color(0xFFF59E0B));
       _load();
     } catch (e) {

@@ -362,20 +362,17 @@ def get_worker_wallet(worker_id: int, db: Session = Depends(database.get_db), cu
 
 # --- Quản lý Hỗ trợ cho Khách hàng & Thợ ---
 
+class _CommentPayload(BaseModel):
+    comment: str
+
 @router.post("/tickets/{ticket_id}/comment")
-def add_ticket_comment(ticket_id: int, payload: BaseModel, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
+def add_ticket_comment(ticket_id: int, payload: _CommentPayload, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_support)):
     """Thêm bình luận admin vào ticket"""
-    from pydantic import Field
-    
-    class CommentPayload(BaseModel):
-        comment: str
-    
     ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
     
-    comment_payload = payload if isinstance(payload, dict) else {'comment': str(payload)}
-    ticket.admin_comment = comment_payload.get('comment', '')
+    ticket.admin_comment = payload.comment
     ticket.updated_at = datetime.utcnow()
     
     log = models.SupportActivityLog(
@@ -387,7 +384,7 @@ def add_ticket_comment(ticket_id: int, payload: BaseModel, db: Session = Depends
     db.commit()
     db.refresh(ticket)
     
-    return {"message": "Comment added successfully", "ticket": ticket}
+    return {"message": "Comment added successfully", "ticket": {"id": ticket.id, "admin_comment": ticket.admin_comment, "status": ticket.status}}
 
 
 @router.get("/support-stats")

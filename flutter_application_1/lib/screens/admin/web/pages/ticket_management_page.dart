@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../providers/auth_provider.dart';
 import '../../../../services/api_service.dart';
 import '../widgets/web_card.dart';
 
@@ -23,13 +25,25 @@ class _TicketManagementPageState extends State<TicketManagementPage> {
     _load();
   }
 
+  bool get _isAdmin {
+    try {
+      final auth = context.read<AuthProvider>();
+      return auth.role == 'admin';
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await _api.client.get('/support/tickets');
+      // Admin dùng endpoint /admin/tickets để xem tất cả ticket (kể cả từ customer)
+      // Support dùng /support/tickets
+      final endpoint = _isAdmin ? '/admin/tickets' : '/support/tickets';
+      final res = await _api.client.get(endpoint);
       if (mounted) {
         setState(() {
-          _tickets = res.data;
+          _tickets = res.data is List ? List<dynamic>.from(res.data) : [];
           _loading = false;
         });
       }
@@ -207,6 +221,19 @@ class _TicketRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = '${ticket['status'] ?? 'pending'}';
     final style = _styleFor(status);
+    final creatorName = ticket['creator_name'] as String?;
+    final creatorRole = ticket['creator_role'] as String?;
+
+    // Map role to display
+    String roleLabel = '';
+    Color roleColor = Colors.grey;
+    if (creatorRole == 'customer') {
+      roleLabel = 'Khách hàng';
+      roleColor = const Color(0xFF3B82F6);
+    } else if (creatorRole == 'worker') {
+      roleLabel = 'Thợ';
+      roleColor = const Color(0xFF10B981);
+    }
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -257,6 +284,24 @@ class _TicketRow extends StatelessWidget {
                     ],
                     const SizedBox(width: 10),
                     _TicketStatusBadge(label: style.label, color: style.color),
+                    if (creatorName != null && roleLabel.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: roleColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '$creatorName • $roleLabel',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            color: roleColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 7),

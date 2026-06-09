@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, EmailStr
 import random
 import string
+from collections import defaultdict
 
 import database
 import models
@@ -366,6 +367,85 @@ def reject_refund(request_id: int, db: Session = Depends(database.get_db), curre
     return req
 
 
+# --- Duyệt hồ sơ Thợ (Admin cũng có quyền) ---
+
+@router.get("/workers/pending", response_model=List[schemas.WorkerResponse])
+def get_pending_workers_admin(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Admin lấy danh sách thợ chờ duyệt"""
+    return db.query(models.Worker).filter(models.Worker.status == "pending").all()
+
+
+@router.post("/workers/{worker_id}/approve", response_model=schemas.WorkerResponse)
+def approve_worker_admin(worker_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Admin duyệt hồ sơ thợ"""
+    worker = db.query(models.Worker).filter(models.Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    worker.status = "approved"
+
+    legacy_profile = db.query(models.WorkerProfile).filter(models.WorkerProfile.user_id == worker.user_id).first()
+    if legacy_profile:
+        legacy_profile.is_available = True
+
+    log = models.SupportActivityLog(
+        support_id=current_user.id,
+        action="approve_worker",
+        details=f"Admin approved worker ID {worker_id}"
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(worker)
+    return worker
+
+
+@router.post("/workers/{worker_id}/reject", response_model=schemas.WorkerResponse)
+def reject_worker_admin(worker_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Admin từ chối hồ sơ thợ"""
+    worker = db.query(models.Worker).filter(models.Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    worker.status = "rejected"
+
+    log = models.SupportActivityLog(
+        support_id=current_user.id,
+        action="reject_worker",
+        details=f"Admin rejected worker ID {worker_id}"
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(worker)
+    return worker
+
+
+# --- Quản lý Ticket từ Khách hàng (Admin xem) ---
+
+@router.get("/tickets")
+def get_all_tickets_admin(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Admin lấy toàn bộ ticket của khách hàng và thợ"""
+    tickets = db.query(models.Ticket).order_by(models.Ticket.created_at.desc()).all()
+    result = []
+    for t in tickets:
+        creator_name = None
+        creator_role = None
+        if t.creator:
+            creator_name = t.creator.full_name
+            creator_role = t.creator.role.value if hasattr(t.creator.role, 'value') else str(t.creator.role)
+        result.append({
+            "id": t.id,
+            "creator_id": t.creator_id,
+            "creator_name": creator_name,
+            "creator_role": creator_role,
+            "booking_id": t.booking_id,
+            "title": t.title,
+            "description": t.description,
+            "status": t.status,
+            "admin_comment": t.admin_comment,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+        })
+    return result
+
+
 # --- Thống kê Tài chính Hệ thống ---
 
 @router.get("/financial-stats")
@@ -390,6 +470,60 @@ def get_financial_stats(db: Session = Depends(database.get_db), current_user: mo
         "total_refunded": total_refunded_amount,
         "wallet_balances_sum": wallet_balances_sum
     }
+
+
+@router.get("/revenue-chart")
+def get_revenue_chart(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Lấy dữ liệu doanh thu theo tháng trong 12 tháng gần nhất"""
+    now = datetime.now(timezone.utc)
+    months = []
+    for i in range(11, -1, -1):
+        # Tính tháng: now - i tháng
+        month_date = now.replace(day=1) - timedelta(days=i * 30)
+        months.append((month_date.year, month_date.month))
+
+    bookings_done = db.query(models.Booking).filter(
+        models.Booking.status == models.BookingStatusEnum.DONE
+    ).all()
+
+    # Gộp doanh thu theo tháng
+    revenue_by_month = defaultdict(float)
+    bookings_count_by_month = defaultdict(int)
+    for b in bookings_done:
+        if b.created_at and b.service and b.service.price:
+            key = (b.created_at.year, b.created_at.month)
+            revenue_by_month[key] += float(b.service.price)
+            bookings_count_by_month[key] += 1
+
+    result = []
+    for (year, month) in months:
+        key = (year, month)
+        result.append({
+            "label": f"{month:02d}/{year}",
+            "month": month,
+            "year": year,
+            "revenue": revenue_by_month.get(key, 0.0),
+            "platform_fee": revenue_by_month.get(key, 0.0) * 0.1,
+            "bookings_count": bookings_count_by_month.get(key, 0),
+        })
+    return result
+
+
+@router.get("/bookings-chart")
+def get_bookings_chart(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Lấy thống kê đơn hàng theo trạng thái"""
+    statuses = [
+        ("pending", "Chờ"),
+        ("accepted", "Đã nhận"),
+        ("in_progress", "Đang làm"),
+        ("done", "Hoàn thành"),
+        ("cancelled", "Đã hủy"),
+    ]
+    result = []
+    for status_val, label in statuses:
+        count = db.query(models.Booking).filter(models.Booking.status == status_val).count()
+        result.append({"status": status_val, "label": label, "count": count})
+    return result
 
 
 # --- Quản lý Tài khoản Điều hành viên (Support) & Vouchers ---
@@ -464,6 +598,12 @@ def delete_voucher(voucher_id: int, db: Session = Depends(database.get_db), curr
     return {"message": f"Voucher {voucher_id} deleted successfully"}
 
 
+@router.get("/notifications", response_model=List[schemas.NotificationResponse])
+def get_notifications(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
+    """Lấy danh sách tất cả thông báo đã gửi"""
+    return db.query(models.Notification).order_by(models.Notification.created_at.desc()).all()
+
+
 @router.post("/notifications", response_model=schemas.NotificationResponse)
 def create_notification(payload: schemas.NotificationCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_admin)):
     notification = models.Notification(
@@ -474,4 +614,4 @@ def create_notification(payload: schemas.NotificationCreate, db: Session = Depen
     db.add(notification)
     db.commit()
     db.refresh(notification)
-    return notification
+    return notification

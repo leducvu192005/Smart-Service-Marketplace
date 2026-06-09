@@ -47,6 +47,24 @@ try:
 except Exception:
     pass  # constraint đã đúng hoặc không có
 
+# Auto-migrate: thêm các cột voucher mới nếu chưa có (PostgreSQL / Supabase)
+if "vouchers" in inspector.get_table_names():
+    voucher_cols = [col["name"] for col in inspector.get_columns("vouchers")]
+    new_voucher_cols = [
+        ("discount_value", "ALTER TABLE vouchers ADD COLUMN discount_value FLOAT"),
+        ("discount_type", "ALTER TABLE vouchers ADD COLUMN discount_type VARCHAR(20) DEFAULT 'fixed'"),
+        ("max_uses", "ALTER TABLE vouchers ADD COLUMN max_uses INTEGER"),
+        ("used_count", "ALTER TABLE vouchers ADD COLUMN used_count INTEGER DEFAULT 0"),
+    ]
+    for col_name, alter_sql in new_voucher_cols:
+        if col_name not in voucher_cols:
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text(alter_sql))
+                print(f"[MIGRATE] Added vouchers.{col_name}")
+            except Exception as e:
+                print(f"[MIGRATE] Skip vouchers.{col_name}: {e}")
+
 
 # 3. Hàm nạp dữ liệu danh mục & dịch vụ tự động
 def seed_data():

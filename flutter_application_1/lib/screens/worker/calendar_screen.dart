@@ -14,7 +14,7 @@ class _WorkerCalendarScreenState extends State<WorkerCalendarScreen> {
   final ApiService _apiService = ApiService();
   List<WorkerCalendar> _slots = [];
   bool _isLoading = true;
-  List<DateTime> _days = [];
+  final List<DateTime> _days = [];
 
   @override
   void initState() {
@@ -135,7 +135,6 @@ class _WorkerCalendarScreenState extends State<WorkerCalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B), // Sleek dark worker background
       appBar: AppBar(

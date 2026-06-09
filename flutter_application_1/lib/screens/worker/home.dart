@@ -529,7 +529,6 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   }
 
   Widget _buildCurrentJobCard(ThemeData theme) {
-    final int bookingId = _currentJob['booking_id'];
     final String serviceName = _currentJob['service_name'];
     final String address = _currentJob['address'];
     final String timeStr = _currentJob['scheduled_time'];
