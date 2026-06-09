@@ -125,6 +125,7 @@ async def get_worker_dashboard(
     return {
         "worker_name": worker.full_name or current_user.full_name or "Nhân viên Thợ",
         "rating": worker.rating or 5.0,
+        "total_reviews": worker.total_reviews or 0,
         "total_jobs": total_jobs,
         "today_jobs": today_jobs,
         "completed_jobs": completed_jobs,

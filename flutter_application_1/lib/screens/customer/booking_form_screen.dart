@@ -22,11 +22,51 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
   // Package Selection State: 'classic', 'premium', 'platinum'
   String _selectedTier = 'classic';
 
+  final ApiService _apiService = ApiService();
+  List<Service> _otherServices = [];
+  bool _isLoadingOtherServices = true;
+
   @override
   void dispose() {
     _addressController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchOtherServices();
+  }
+
+  Future<void> _fetchOtherServices() async {
+    try {
+      final response = await _apiService.client.get('/customer/services');
+      final List<Service> list = (response.data as List)
+          .map((i) => Service.fromJson(i))
+          .where((s) => s.id != widget.service.id) // Exclude current service
+          .toList();
+      
+      // Sắp xếp các dịch vụ cùng nhóm lên đầu
+      if (widget.service.categoryId != null) {
+        list.sort((a, b) {
+          final aCatMatch = a.categoryId == widget.service.categoryId ? 1 : 0;
+          final bCatMatch = b.categoryId == widget.service.categoryId ? 1 : 0;
+          return bCatMatch.compareTo(aCatMatch);
+        });
+      }
+
+      if (mounted) {
+        setState(() {
+          _otherServices = list;
+          _isLoadingOtherServices = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingOtherServices = false);
+      }
+    }
   }
 
   // Smart currency formatter (handles VND & USD elegantly)
@@ -893,6 +933,38 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
                             color: Colors.grey.shade400,
                           ),
                         ),
+                        const SizedBox(height: 32),
+                        // 6. Related Services Section
+                        Text(
+                          'Các dịch vụ khác',
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1E1E1E),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _isLoadingOtherServices
+                            ? const Center(child: CircularProgressIndicator())
+                            : _otherServices.isEmpty
+                                ? Text(
+                                    'Không có dịch vụ nào khác.',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 14,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                  )
+                                : SizedBox(
+                                    height: 170,
+                                    child: ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: _otherServices.length,
+                                      itemBuilder: (context, index) {
+                                        final other = _otherServices[index];
+                                        return _buildRelatedServiceCard(other);
+                                      },
+                                    ),
+                                  ),
                         const SizedBox(height: 140), // Spacer to avoid overlap with sticky bottom bar
                       ],
                     ),
@@ -1078,6 +1150,98 @@ class _BookingFormScreenState extends State<BookingFormScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRelatedServiceCard(Service other) {
+    final theme = Theme.of(context);
+    final String name = other.name;
+    final double price = other.price;
+
+    String heroImage = 'assets/images/cleaner_man.png';
+    final nameLower = name.toLowerCase();
+    if (nameLower.contains('dọn') || nameLower.contains('clean') || nameLower.contains('vệ sinh')) {
+      heroImage = 'assets/images/cleaning.png';
+    } else if (nameLower.contains('điện') || nameLower.contains('electric') || nameLower.contains('thiết bị')) {
+      heroImage = 'assets/images/electrical.png';
+    } else if (nameLower.contains('nước') || nameLower.contains('plumb') || nameLower.contains('ống')) {
+      heroImage = 'assets/images/plumbing.png';
+    } else if (nameLower.contains('it') || nameLower.contains('máy tính') || nameLower.contains('cài đặt') || nameLower.contains('mạng')) {
+      heroImage = 'assets/images/it_solutions.png';
+    } else if (nameLower.contains('sửa') || nameLower.contains('handy') || nameLower.contains('khoan') || nameLower.contains('lắp')) {
+      heroImage = 'assets/images/handyman.png';
+    }
+
+    return Container(
+      width: 140,
+      margin: const EdgeInsets.only(right: 12),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BookingFormScreen(service: other),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade100, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.01),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  child: Image.asset(
+                    heroImage,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E1E1E),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatPrice(price),
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: theme.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

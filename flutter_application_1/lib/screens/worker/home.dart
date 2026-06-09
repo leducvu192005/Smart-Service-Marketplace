@@ -21,6 +21,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   // Dashboard stats
   String _workerName = '';
   double _rating = 5.0;
+  int _totalReviews = 0;
   int _totalJobs = 0;
   int _todayJobs = 0;
   int _completedJobs = 0;
@@ -51,6 +52,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
         setState(() {
           _workerName = stats['worker_name'] ?? 'Nhân viên Thợ';
           _rating = (stats['rating'] as num?)?.toDouble() ?? 5.0;
+          _totalReviews = (stats['total_reviews'] as num?)?.toInt() ?? 0;
           _totalJobs = (stats['total_jobs'] as num?)?.toInt() ?? 0;
           _todayJobs = (stats['today_jobs'] as num?)?.toInt() ?? 0;
           _completedJobs = (stats['completed_jobs'] as num?)?.toInt() ?? 0;
@@ -284,7 +286,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '${_rating.toStringAsFixed(1)} đánh giá',
+                            '${_rating.toStringAsFixed(1)} ★ (${_totalReviews} đánh giá)',
                             style: GoogleFonts.outfit(
                               fontSize: 12,
                               color: Colors.white70,
@@ -371,7 +373,7 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
                   ],
                 ),
                 Text(
-                  '\$${_walletBalance.toStringAsFixed(2)}',
+                  _formatPrice(_walletBalance),
                   style: GoogleFonts.outfit(
                     color: Colors.white,
                     fontSize: 20,
@@ -703,14 +705,6 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
           ),
           const SizedBox(height: 12),
           _buildShortcutTile(
-            title: 'Yêu cầu rút tiền từ ví',
-            subtitle: 'Gửi yêu cầu rút tiền lên hệ thống quản trị',
-            icon: Icons.payments_outlined,
-            color: Colors.purpleAccent,
-            onTap: _showWithdrawDialog,
-          ),
-          const SizedBox(height: 12),
-          _buildShortcutTile(
             title: 'Gửi khiếu nại / Hỗ trợ',
             subtitle: 'Liên hệ bộ phận kỹ thuật hỗ trợ bạn',
             icon: Icons.contact_support_outlined,
@@ -738,86 +732,15 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
     );
   }
 
-  void _showWithdrawDialog() {
-    final amountController = TextEditingController();
-    bool isSubmitting = false;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text('Yêu Cầu Rút Tiền', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Số dư khả dụng: \$${_walletBalance.toStringAsFixed(2)}',
-                    style: GoogleFonts.outfit(color: Colors.grey.shade600, fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: amountController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Số tiền muốn rút (USD)',
-                      prefixIcon: Icon(Icons.attach_money),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Hủy'),
-                ),
-                ElevatedButton(
-                  onPressed: isSubmitting ? null : () async {
-                    final amt = double.tryParse(amountController.text) ?? 0.0;
-                    if (amt <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Vui lòng nhập số tiền hợp lệ')),
-                      );
-                      return;
-                    }
-                    if (amt > _walletBalance) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Số dư ví không đủ')),
-                      );
-                      return;
-                    }
-                    setStateDialog(() => isSubmitting = true);
-                    try {
-                      await _apiService.client.post('/workers/withdraw', data: {'amount': amt});
-                      if (context.mounted) {
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Yêu cầu rút tiền của bạn đã gửi lên Admin phê duyệt.')),
-                        );
-                        _fetchDashboardData();
-                      }
-                    } catch (e) {
-                      setStateDialog(() => isSubmitting = false);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Lỗi rút tiền: $e')),
-                        );
-                      }
-                    }
-                  },
-                  child: isSubmitting 
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Gửi Yêu Cầu'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+  String _formatPrice(double price) {
+    if (price >= 1000) {
+      final String str = price.toStringAsFixed(0);
+      final RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+      final String result = str.replaceAllMapped(reg, (Match m) => '${m[1]}.');
+      return '$resultđ';
+    } else {
+      return '\$${price.toStringAsFixed(0)}';
+    }
   }
 
   void _showTicketDialog() {

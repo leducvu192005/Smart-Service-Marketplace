@@ -46,7 +46,7 @@ params = {
     "vnp_BankCode": "NCB",
     "vnp_BankTranNo": "VNP12345678",
     "vnp_CardType": "ATM",
-    "vnp_OrderInfo": f"Thanh toan don hang #27",
+    "vnp_OrderInfo": f"Thanh toan don hang 27",
     "vnp_PayDate": "20260608180000",
     "vnp_ResponseCode": "00",
     "vnp_TmnCode": "R7LI1D7B",
