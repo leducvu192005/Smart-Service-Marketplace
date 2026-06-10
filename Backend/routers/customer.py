@@ -268,7 +268,7 @@ def create_ticket(ticket: schemas.TicketCreate, db: Session = Depends(database.g
     return new_ticket
 
 
-@router.post("/apply-worker", response_model=schemas.TicketResponse)
+@router.post("/apply-worker", response_model=schemas.WorkerResponse)
 def apply_become_worker(
     application: schemas.WorkerApplicationCreate,
     db: Session = Depends(database.get_db),
@@ -276,38 +276,48 @@ def apply_become_worker(
 ):
     """
     Khách hàng gửi đơn đăng ký trở thành Worker.
-    Đơn được lưu dưới dạng Ticket với tiêu đề '[ĐĂNG KÝ THỢ]' để admin xét duyệt.
+    Đơn được lưu trực tiếp vào bảng workers với trạng thái pending để Admin xét duyệt.
     """
-    # Kiểm tra đã có đơn đang chờ duyệt chưa
-    existing = db.query(models.Ticket).filter(
-        models.Ticket.creator_id == current_user.id,
-        models.Ticket.title.like("[ĐĂNG KÝ THỢ]%"),
-        models.Ticket.status == "pending"
-    ).first()
+    # Kiểm tra đã có bản ghi trong bảng workers chưa
+    existing = db.query(models.Worker).filter(models.Worker.user_id == current_user.id).first()
     if existing:
-        raise HTTPException(
-            status_code=400,
-            detail="Bạn đã có đơn đăng ký đang chờ xét duyệt. Vui lòng chờ Admin phản hồi."
-        )
+        if existing.status == "pending":
+            raise HTTPException(
+                status_code=400,
+                detail="Bạn đã có đơn đăng ký đang chờ xét duyệt. Vui lòng chờ Admin phản hồi."
+            )
+        elif existing.status == "approved":
+            raise HTTPException(
+                status_code=400,
+                detail="Tài khoản của bạn đã là Thợ hoạt động trên hệ thống."
+            )
+        else:
+            # Nếu đã bị từ chối hoặc đình chỉ, cho phép gửi lại thông tin để ứng tuyển lại
+            existing.status = "pending"
+            existing.full_name = application.full_name
+            existing.phone = application.phone
+            existing.identity_number = application.id_card_number
+            existing.address = application.address
+            existing.skills = application.skills
+            existing.description = f"Kinh nghiệm: {application.experience}\nGiới thiệu: {application.bio or 'Không có'}"
+            db.commit()
+            db.refresh(existing)
+            return existing
 
-    description = (
-        f"HỌ TÊN: {application.full_name}\n"
-        f"SĐT: {application.phone}\n"
-        f"SỐ CCCD/CMND: {application.id_card_number}\n"
-        f"ĐỊA CHỈ: {application.address}\n"
-        f"KỸ NĂNG: {application.skills}\n"
-        f"KINH NGHIỆM: {application.experience}\n"
-        f"GIỚI THIỆU: {application.bio or 'Không có'}"
+    new_worker = models.Worker(
+        user_id=current_user.id,
+        full_name=application.full_name,
+        email=current_user.email,
+        phone=application.phone,
+        identity_number=application.id_card_number,
+        address=application.address,
+        skills=application.skills,
+        description=f"Kinh nghiệm: {application.experience}\nGiới thiệu: {application.bio or 'Không có'}",
+        status="pending",
+        wallet_balance=0.0,
+        is_available=False
     )
-
-    ticket = models.Ticket(
-        creator_id=current_user.id,
-        booking_id=None,
-        title=f"[ĐĂNG KÝ THỢ] {current_user.full_name} (ID:{current_user.id})",
-        description=description,
-        status="pending"
-    )
-    db.add(ticket)
+    db.add(new_worker)
     db.commit()
-    db.refresh(ticket)
-    return ticket
+    db.refresh(new_worker)
+    return new_worker

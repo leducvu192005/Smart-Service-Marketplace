@@ -383,8 +383,22 @@ def approve_worker_admin(worker_id: int, db: Session = Depends(database.get_db),
         raise HTTPException(status_code=404, detail="Worker not found")
     worker.status = "approved"
 
+    # Cập nhật vai trò của User sang WORKER
+    user = db.query(models.User).filter(models.User.id == worker.user_id).first()
+    if user:
+        user.role = models.RoleEnum.WORKER
+
+    # Cập nhật hoặc tạo mới WorkerProfile để đồng bộ
     legacy_profile = db.query(models.WorkerProfile).filter(models.WorkerProfile.user_id == worker.user_id).first()
-    if legacy_profile:
+    if not legacy_profile:
+        legacy_profile = models.WorkerProfile(
+            user_id=worker.user_id,
+            skills=worker.skills,
+            experience=worker.description,
+            is_available=True
+        )
+        db.add(legacy_profile)
+    else:
         legacy_profile.is_available = True
 
     log = models.SupportActivityLog(
