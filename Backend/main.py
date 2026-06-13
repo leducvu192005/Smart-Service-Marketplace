@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 import models
-from routers import auth, customer, worker, support, admin, workers, payments, notifications
+from routers import auth, customer, worker, support, admin, workers, payments, notifications, chat
 from contextlib import asynccontextmanager
 import subprocess
 import os
@@ -168,6 +168,7 @@ app.include_router(support.router)
 app.include_router(admin.router)
 app.include_router(payments.router)
 app.include_router(notifications.router)
+app.include_router(chat.router)
 
 
 @app.get("/")

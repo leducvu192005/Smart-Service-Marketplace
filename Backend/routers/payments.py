@@ -27,8 +27,8 @@ VNP_TMN_CODE = "R7LI1D7B"
 VNP_HASH_SECRET = "BOUI8VRBS1V1G3481FS8K8H249GGW4LF"
 VNP_URL = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"
 # Các URL này cần được cập nhật khi deploy hoặc dùng ngrok
-VNP_RETURN_URL = "http://localhost:8000/payments/return"
-VNP_IPN_URL = "http://localhost:8000/payments/ipn"
+VNP_RETURN_URL = "https://wielder-angles-garnet.ngrok-free.dev/payments/return"
+VNP_IPN_URL = "https://wielder-angles-garnet.ngrok-free.dev/payments/ipn"
 
 
 def _hmac_sha512(key: str, data: str) -> str:
@@ -161,17 +161,17 @@ def create_payment(
 
 
 @router.get("/return")
-def payment_return(request: Request):
+def payment_return(request: Request, db: Session = Depends(database.get_db)):
     """
     VNPay redirect customer về đây sau khi thanh toán.
-    ⚠️ CHỈ hiển thị kết quả — KHÔNG cập nhật DB tại đây.
-    IPN mới là nguồn chính xác nhận thanh toán.
+    Cập nhật DB trực tiếp ở đây để phục vụ việc test dưới local tiện lợi hơn.
     """
     params = dict(request.query_params)
     is_valid = _verify_vnpay_hash(params.copy())
 
     response_code = params.get("vnp_ResponseCode", "")
     txn_ref = params.get("vnp_TxnRef", "")
+    vnp_transaction_no = params.get("vnp_TransactionNo", "")
 
     if not is_valid:
         return {
@@ -180,13 +180,45 @@ def payment_return(request: Request):
             "txn_ref": txn_ref,
         }
 
+    # Tìm payment trong DB
+    payment = db.query(models.Payment).filter(
+        models.Payment.vnp_txn_ref == txn_ref,
+    ).first()
+
     if response_code == "00":
+        # Thanh toán thành công
+        if payment and payment.status != "paid":
+            payment.status = "paid"
+            payment.vnp_transaction_no = vnp_transaction_no
+
+            # Cập nhật booking status → paid_confirmed
+            booking = db.query(models.Booking).filter(
+                models.Booking.id == payment.booking_id,
+            ).first()
+            if booking:
+                booking.status = models.BookingStatusEnum.PAID_CONFIRMED
+
+                # Tạo notification cho customer
+                notif = models.UserNotification(
+                    user_id=booking.customer_id,
+                    title="Thanh toán thành công",
+                    message=f"Đơn hàng #{booking.id} đã thanh toán {payment.amount:,.0f}đ. Đang chờ thợ nhận việc.",
+                )
+                db.add(notif)
+            db.commit()
+
         return {
             "success": True,
-            "message": "Thanh toán thành công! Đơn hàng sẽ được cập nhật tự động.",
+            "message": "Thanh toán thành công! Đơn hàng đã được cập nhật.",
             "txn_ref": txn_ref,
         }
     else:
+        # Thanh toán thất bại
+        if payment and payment.status not in ["paid", "failed"]:
+            payment.status = "failed"
+            payment.vnp_transaction_no = vnp_transaction_no
+            db.commit()
+
         return {
             "success": False,
             "message": f"Thanh toán thất bại (mã lỗi: {response_code})",

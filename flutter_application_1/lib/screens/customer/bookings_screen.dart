@@ -18,6 +18,40 @@ class _BookingsScreenState extends State<BookingsScreen> {
   List<Service> _services = [];
   bool _isLoading = true;
 
+  String _selectedFilter = 'all';
+
+  final List<Map<String, String>> _filters = [
+    {'key': 'all', 'label': 'Tất cả'},
+    {'key': 'pending_payment', 'label': 'Chờ thanh toán'},
+    {'key': 'paid_confirmed', 'label': 'Chờ thợ'},
+    {'key': 'active', 'label': 'Đang thực hiện'},
+    {'key': 'completed', 'label': 'Đã hoàn thành'},
+    {'key': 'cancelled', 'label': 'Đã hủy'},
+  ];
+
+  List<Booking> get _filteredBookings {
+    if (_selectedFilter == 'all') {
+      return _bookings;
+    }
+    return _bookings.where((booking) {
+      switch (_selectedFilter) {
+        case 'pending_payment':
+          return booking.status == 'pending_payment';
+        case 'paid_confirmed':
+          return booking.status == 'paid_confirmed';
+        case 'active':
+          return ['accepted', 'on_the_way', 'arrived', 'in_progress']
+              .contains(booking.status);
+        case 'completed':
+          return ['done', 'reviewed'].contains(booking.status);
+        case 'cancelled':
+          return booking.status == 'cancelled';
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1353,6 +1387,69 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
+  Widget _buildFilterBar() {
+    return Container(
+      height: 60,
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _filters.length,
+        itemBuilder: (context, index) {
+          final filter = _filters[index];
+          final isSelected = _selectedFilter == filter['key'];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFF6F61E8)
+                    : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF6F61E8).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedFilter = filter['key']!;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    alignment: Alignment.center,
+                    child: Text(
+                      filter['label']!,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected ? Colors.white : Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1369,270 +1466,280 @@ class _BookingsScreenState extends State<BookingsScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _fetchBookings,
-              child: _bookings.isEmpty
-                  ? ListView(
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.25,
-                        ),
-                        Icon(
-                          Icons.assignment_late_outlined,
-                          size: 72,
-                          color: Colors.grey.shade300,
-                        ),
-                        const SizedBox(height: 16),
-                        Center(
-                          child: Text(
-                            'Chưa có lịch hẹn nào.',
-                            style: GoogleFonts.outfit(
-                              color: Colors.grey,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                      itemCount: _bookings.length,
-                      itemBuilder: (context, index) {
-                        final booking = _bookings[index];
-                        final statusConfig = _getStatusConfig(
-                          booking.status,
-                          context,
-                        );
-
-                        final Service? associatedService = _services
-                            .cast<Service?>()
-                            .firstWhere(
-                              (s) => s?.id == booking.serviceId,
-                              orElse: () => null,
-                            );
-
-                        final tier = _getTierName(booking.note);
-                        final displayPrice = associatedService != null
-                            ? _formatPrice(
-                                _calculatePrice(associatedService, tier),
-                              )
-                            : '';
-
-                        final parsedDate =
-                            DateTime.tryParse(booking.scheduledTime) ??
-                            DateTime.now();
-                        final displayDate =
-                            '${parsedDate.day.toString().padLeft(2, '0')}/${parsedDate.month.toString().padLeft(2, '0')}/${parsedDate.year}';
-                        final displayTime =
-                            '${parsedDate.hour.toString().padLeft(2, '0')}:${parsedDate.minute.toString().padLeft(2, '0')}';
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: Colors.grey.shade100,
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.015),
-                                blurRadius: 15,
-                                offset: const Offset(0, 6),
+          : Column(
+              children: [
+                _buildFilterBar(),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _fetchBookings,
+                    child: _filteredBookings.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(
+                                height: MediaQuery.of(context).size.height * 0.25,
+                              ),
+                              Icon(
+                                Icons.assignment_late_outlined,
+                                size: 72,
+                                color: Colors.grey.shade300,
+                              ),
+                              const SizedBox(height: 16),
+                              Center(
+                                child: Text(
+                                  _bookings.isEmpty
+                                      ? 'Chưa có lịch hẹn nào.'
+                                      : 'Không có lịch hẹn nào ở trạng thái này.',
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.grey,
+                                    fontSize: 15,
+                                  ),
+                                ),
                               ),
                             ],
-                          ),
-                          child: InkWell(
-                            onTap: () =>
-                                _showBookingDetailsBottomSheet(booking),
-                            borderRadius: BorderRadius.circular(20),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Card Header
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: statusConfig['bg'],
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.build_circle_outlined,
-                                          color: statusConfig['color'],
-                                          size: 20,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
+                            itemCount: _filteredBookings.length,
+                            itemBuilder: (context, index) {
+                              final booking = _filteredBookings[index];
+                              final statusConfig = _getStatusConfig(
+                                booking.status,
+                                context,
+                              );
+
+                              final Service? associatedService = _services
+                                  .cast<Service?>()
+                                  .firstWhere(
+                                    (s) => s?.id == booking.serviceId,
+                                    orElse: () => null,
+                                  );
+
+                              final tier = _getTierName(booking.note);
+                              final displayPrice = associatedService != null
+                                  ? _formatPrice(
+                                      _calculatePrice(associatedService, tier),
+                                    )
+                                  : '';
+
+                              final parsedDate =
+                                  DateTime.tryParse(booking.scheduledTime) ??
+                                  DateTime.now();
+                              final displayDate =
+                                  '${parsedDate.day.toString().padLeft(2, '0')}/${parsedDate.month.toString().padLeft(2, '0')}/${parsedDate.year}';
+                              final displayTime =
+                                  '${parsedDate.hour.toString().padLeft(2, '0')}:${parsedDate.minute.toString().padLeft(2, '0')}';
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.grey.shade100,
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.015),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: InkWell(
+                                  onTap: () =>
+                                      _showBookingDetailsBottomSheet(booking),
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Card Header
+                                        Row(
                                           children: [
-                                            Text(
-                                              'Mã đơn: #${booking.id}',
-                                              style: GoogleFonts.outfit(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 15,
-                                                color: const Color(0xFF1E1E1E),
+                                            Container(
+                                              padding: const EdgeInsets.all(10),
+                                              decoration: BoxDecoration(
+                                                color: statusConfig['bg'],
+                                                borderRadius: BorderRadius.circular(
+                                                  12,
+                                                ),
+                                              ),
+                                              child: Icon(
+                                                Icons.build_circle_outlined,
+                                                color: statusConfig['color'],
+                                                size: 20,
                                               ),
                                             ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              associatedService?.name ??
-                                                  'ID Dịch vụ: ${booking.serviceId}',
-                                              style: GoogleFonts.outfit(
-                                                color: Colors.grey.shade600,
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w500,
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Mã đơn: #${booking.id}',
+                                                    style: GoogleFonts.outfit(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 15,
+                                                      color: const Color(0xFF1E1E1E),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    associatedService?.name ??
+                                                        'ID Dịch vụ: ${booking.serviceId}',
+                                                    style: GoogleFonts.outfit(
+                                                      color: Colors.grey.shade600,
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 10,
+                                                vertical: 6,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: statusConfig['bg'],
+                                                borderRadius: BorderRadius.circular(
+                                                  8,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                statusConfig['text'],
+                                                style: GoogleFonts.outfit(
+                                                  fontSize: 11,
+                                                  color: statusConfig['color'],
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                               ),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: statusConfig['bg'],
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          statusConfig['text'],
-                                          style: GoogleFonts.outfit(
-                                            fontSize: 11,
-                                            color: statusConfig['color'],
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
 
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 12),
-                                    child: Divider(
-                                      height: 1,
-                                      color: Color(0xFFF5F5F5),
-                                    ),
-                                  ),
-
-                                  // Timestamps & Locations
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.access_time_rounded,
-                                        size: 16,
-                                        color: Colors.grey,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        '$displayTime - $displayDate',
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 13,
-                                          color: Colors.grey.shade700,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      if (displayPrice.isNotEmpty)
-                                        Text(
-                                          displayPrice,
-                                          style: GoogleFonts.outfit(
-                                            fontSize: 15,
-                                            color: const Color(0xFF6F61E8),
-                                            fontWeight: FontWeight.bold,
+                                        const Padding(
+                                          padding: EdgeInsets.symmetric(vertical: 12),
+                                          child: Divider(
+                                            height: 1,
+                                            color: Color(0xFFF5F5F5),
                                           ),
                                         ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Padding(
-                                        padding: EdgeInsets.only(top: 2),
-                                        child: Icon(
-                                          Icons.location_on_rounded,
-                                          size: 16,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          booking.address,
-                                          style: GoogleFonts.outfit(
-                                            fontSize: 13,
-                                            color: Colors.grey.shade700,
-                                            height: 1.4,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
 
-                                  // Action Buttons
-                                  if (booking.status == 'done') ...[
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: OutlinedButton.icon(
-                                            onPressed: () =>
-                                                _showReviewDialog(booking.id),
-                                            icon: const Icon(
-                                              Icons.star_rounded,
-                                              color: Colors.amber,
-                                              size: 18,
+                                        // Timestamps & Locations
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.access_time_rounded,
+                                              size: 16,
+                                              color: Colors.grey,
                                             ),
-                                            label: Text(
-                                              'Đánh giá thợ',
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              '$displayTime - $displayDate',
                                               style: GoogleFonts.outfit(
                                                 fontSize: 13,
-                                                fontWeight: FontWeight.bold,
+                                                color: Colors.grey.shade700,
+                                                fontWeight: FontWeight.w500,
                                               ),
                                             ),
-                                            style: OutlinedButton.styleFrom(
-                                              foregroundColor:
-                                                  Colors.amber.shade800,
-                                              side: BorderSide(
-                                                color: Colors.amber.shade400,
-                                                width: 1.2,
+                                            const Spacer(),
+                                            if (displayPrice.isNotEmpty)
+                                              Text(
+                                                displayPrice,
+                                                style: GoogleFonts.outfit(
+                                                  fontSize: 15,
+                                                  color: const Color(0xFF6F61E8),
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                               ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                            ),
-                                          ),
+                                          ],
                                         ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Padding(
+                                              padding: EdgeInsets.only(top: 2),
+                                              child: Icon(
+                                                Icons.location_on_rounded,
+                                                size: 16,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                booking.address,
+                                                style: GoogleFonts.outfit(
+                                                  fontSize: 13,
+                                                  color: Colors.grey.shade700,
+                                                  height: 1.4,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+
+                                        // Action Buttons
+                                        if (booking.status == 'done') ...[
+                                          const SizedBox(height: 12),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: OutlinedButton.icon(
+                                                  onPressed: () =>
+                                                      _showReviewDialog(booking.id),
+                                                  icon: const Icon(
+                                                    Icons.star_rounded,
+                                                    color: Colors.amber,
+                                                    size: 18,
+                                                  ),
+                                                  label: Text(
+                                                    'Đánh giá thợ',
+                                                    style: GoogleFonts.outfit(
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                  style: OutlinedButton.styleFrom(
+                                                    foregroundColor:
+                                                        Colors.amber.shade800,
+                                                    side: BorderSide(
+                                                      color: Colors.amber.shade400,
+                                                      width: 1.2,
+                                                    ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(12),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ],
                                     ),
-                                  ],
-                                ],
-                              ),
-                            ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
+                  ),
+                ),
+              ],
             ),
     );
   }

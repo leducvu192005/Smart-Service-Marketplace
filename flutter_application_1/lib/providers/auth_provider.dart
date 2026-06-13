@@ -9,11 +9,13 @@ class AuthProvider with ChangeNotifier {
   bool _isLoading = true;
   String? _role;
   Map<String, dynamic>? _user;
+  String? _token;
 
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
   String? get role => _role;
   Map<String, dynamic>? get user => _user;
+  String? get token => _token;
 
   Future<void> checkAuthStatus() async {
     _isLoading = true;
@@ -23,6 +25,7 @@ class AuthProvider with ChangeNotifier {
     final token = prefs.getString('auth_token');
 
     if (token != null) {
+      _token = token;
       try {
         final response = await _apiService.client.get('/auth/me');
         _user = response.data;
@@ -49,6 +52,7 @@ class AuthProvider with ChangeNotifier {
 
       final token = response.data['access_token'];
       _role = response.data['role'];
+      _token = token;
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('auth_token', token);
@@ -71,5 +75,6 @@ class AuthProvider with ChangeNotifier {
     _isAuthenticated = false;
     _role = null;
     _user = null;
+    _token = null;
   }
 }

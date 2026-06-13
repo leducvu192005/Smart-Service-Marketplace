@@ -1,7 +1,8 @@
-import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../services/api_service.dart';
 import '../../models/app_models.dart';
 import '../../providers/auth_provider.dart';
@@ -23,88 +24,90 @@ class ChatDetailScreen extends StatefulWidget {
 }
 
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
-  final ApiService _apiService = ApiService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
   List<ChatMessage> _messages = [];
-  Timer? _pollingTimer;
+  WebSocketChannel? _channel;
   bool _isLoading = true;
   int? _myUserId;
+  String? _token;
+
+  // Derive WebSocket URL from the existing ApiConfig (http → ws, https → wss)
+  String get _wsUrl {
+    final base = ApiConfig.baseUrl; // e.g. "http://10.0.2.2:8000"
+    final wsBase = base.replaceFirst('http://', 'ws://').replaceFirst('https://', 'wss://');
+    return '$wsBase/ws/chat/${widget.booking.id}?token=$_token';
+  }
 
   @override
   void initState() {
     super.initState();
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     _myUserId = authProvider.user?['id'];
-    _fetchMessages(initial: true);
-    // Poll for new messages every 3 seconds
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      _fetchMessages();
-    });
+    _token = authProvider.token;
+    _connectWebSocket();
   }
 
   @override
   void dispose() {
-    _pollingTimer?.cancel();
+    _channel?.sink.close();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchMessages({bool initial = false}) async {
-    if (initial) {
-      setState(() => _isLoading = true);
-    }
-    try {
-      final response = await _apiService.client.get(
-        '/customer/bookings/${widget.booking.id}/chat',
-      );
-      final List<ChatMessage> newMessages = (response.data as List)
-          .map((i) => ChatMessage.fromJson(i))
-          .toList();
+  void _connectWebSocket() {
+    if (_token == null) return;
 
-      if (mounted) {
-        final bool hasNewMessages = newMessages.length != _messages.length;
-        setState(() {
-          _messages = newMessages;
-          if (initial) _isLoading = false;
-        });
+    final uri = Uri.parse(_wsUrl);
+    _channel = WebSocketChannel.connect(uri);
 
-        if (hasNewMessages) {
+    _channel!.stream.listen(
+      (rawData) {
+        final data = jsonDecode(rawData as String) as Map<String, dynamic>;
+
+        if (!mounted) return;
+
+        if (data['type'] == 'history') {
+          // Initial history dump from server
+          final List<dynamic> msgs = data['messages'] ?? [];
+          setState(() {
+            _messages = msgs.map((m) => ChatMessage.fromJson(m)).toList();
+            _isLoading = false;
+          });
+          _scrollToBottom();
+        } else if (data['type'] == 'message') {
+          // Real-time new message broadcast
+          final msg = ChatMessage.fromJson(data);
+          setState(() {
+            _messages.add(msg);
+          });
           _scrollToBottom();
         }
-      }
-    } catch (e) {
-      if (mounted && initial) {
-        setState(() => _isLoading = false);
-      }
-    }
+      },
+      onError: (error) {
+        debugPrint('[WS] Error: $error');
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Kết nối thất bại, thử lại...')),
+          );
+        }
+      },
+      onDone: () {
+        debugPrint('[WS] Connection closed');
+        if (mounted) setState(() {});
+      },
+    );
   }
 
-  Future<void> _sendMessage() async {
+  void _sendMessage() {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _channel == null) return;
 
     _messageController.clear();
-    try {
-      final response = await _apiService.client.post(
-        '/customer/bookings/${widget.booking.id}/chat',
-        data: {'message_text': text},
-      );
-      final newMsg = ChatMessage.fromJson(response.data);
-      if (mounted) {
-        setState(() {
-          _messages.add(newMsg);
-        });
-        _scrollToBottom();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lỗi gửi tin nhắn')),
-        );
-      }
-    }
+    _channel!.sink.add(jsonEncode({'message_text': text}));
   }
 
   void _scrollToBottom() {
@@ -132,9 +135,32 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               widget.partnerName,
               style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16),
             ),
-            Text(
-              'Đơn hàng #${widget.booking.id}',
-              style: GoogleFonts.outfit(fontSize: 11, color: Colors.grey[600]),
+            Row(
+              children: [
+                Text(
+                  'Đơn hàng #${widget.booking.id}',
+                  style: GoogleFonts.outfit(fontSize: 11, color: Colors.grey[600]),
+                ),
+                const SizedBox(width: 6),
+                // Live indicator dot
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF22C55E),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  'Trực tiếp',
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    color: const Color(0xFF22C55E),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -204,7 +230,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.01),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
